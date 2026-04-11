@@ -127,6 +127,8 @@ def scan(
         }
         formatter.print_subdomain_results(subdomain_result)
 
+        # HTTPClient exposes an async close() method for explicit shutdown
+        # (also usable via the async context manager). Ensure we close it here.
         await http.close()
 
     asyncio.run(run_all())
