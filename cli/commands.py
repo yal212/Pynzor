@@ -14,9 +14,9 @@ from cli.options import (
     no_color,
     config_file,
 )
-from utils.http_client import HTTPClient
+from utils.http_client import HTTPClient, ClientConfig
 from utils.validators import normalize_url, extract_domain
-from modules import scanner, fuzzer, headers, sqli, xss, subdomain
+import modules
 from output.reporter import Reporter
 from output.formatter import Formatter
 
@@ -26,7 +26,7 @@ reporter = Reporter()
 formatter = Formatter()
 
 
-def load_config(config_path: Path = None):
+def load_config(config_path: Path | None = None):
     import yaml
 
     default_config = Path(__file__).parent.parent / "config.yaml"
@@ -60,10 +60,18 @@ def scan(
     }
 
     async def run_all():
-        http = HTTPClient(config["http"])
+        http_config = ClientConfig(
+            timeout=config["http"].get("timeout", 10),
+            max_retries=config["http"].get("max_retries", 3),
+            rate_limit=config["http"].get("rate_limit", 0.1),
+            user_agent=config["http"].get("user_agent"),
+            follow_redirects=config["http"].get("follow_redirects", True),
+            verify_ssl=config["http"].get("verify_ssl", True),
+        )
+        http = HTTPClient(http_config)
 
         formatter.print_header("Port Scanner")
-        scanner_result = await scanner.scan(
+        scanner_result = await modules.scan(
             domain, ports=config["scanner"]["common_ports"]
         )
         results["modules"]["scanner"] = {
@@ -76,17 +84,17 @@ def scan(
         formatter.print_scanner_results(scanner_result)
 
         formatter.print_header("Directory Fuzzer")
-        fuzzer_result = await fuzzer.fuzz(
+        fuzzer_result = await modules.fuzz(
             normalized, config["fuzzer"]["wordlist"], config["fuzzer"]["threads"]
         )
         results["modules"]["fuzzer"] = {
-            "found": fuzzer_result.found_count,
-            "paths": fuzzer_result.found_paths[:20],
+            "found": len(fuzzer_result.found),
+            "paths": [r.url for r in fuzzer_result.found[:20]],
         }
         formatter.print_fuzzer_results(fuzzer_result)
 
         formatter.print_header("Security Headers")
-        headers_result = await headers.analyze(normalized, http)
+        headers_result = await modules.analyze(normalized, http)
         results["modules"]["headers"] = {
             "score": headers_result.score,
             "missing": headers_result.missing_headers,
@@ -94,7 +102,7 @@ def scan(
         formatter.print_headers_results(headers_result)
 
         formatter.print_header("SQL Injection")
-        sqli_result = await sqli.probe(normalized, http)
+        sqli_result = await modules.probe(normalized, None)
         results["modules"]["sqli"] = {
             "vulnerable": sqli_result.vulnerable,
             "payload": sqli_result.payload,
@@ -102,7 +110,7 @@ def scan(
         formatter.print_sqli_results(sqli_result)
 
         formatter.print_header("XSS Detection")
-        xss_result = await xss.detect(normalized, http)
+        xss_result = await modules.detect(normalized, None)
         results["modules"]["xss"] = {
             "vulnerable": xss_result.vulnerable,
             "payload": xss_result.payload,
@@ -110,7 +118,7 @@ def scan(
         formatter.print_xss_results(xss_result)
 
         formatter.print_header("Subdomain Enumeration")
-        subdomain_result = await subdomain.enumerate(
+        subdomain_result = await modules.enumerate(
             domain, config["subdomain"]["wordlist"], config["subdomain"]["threads"]
         )
         results["modules"]["subdomain"] = {
@@ -135,36 +143,173 @@ def fuzz(
     target: str = target,
     wordlist: Path = wordlist,
     threads: int = threads,
+    output_dir: str = output_dir,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
 ):
     """Directory/file fuzzing"""
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    normalized = normalize_url(target)
+    wordlist_path = str(wordlist) if wordlist else config["fuzzer"]["wordlist"]
+
+    typer.echo(f"Fuzzing directories on {normalized}")
+
+    async def run_fuzz():
+        result = await modules.fuzz(normalized, wordlist_path, threads)
+        formatter.print_fuzzer_results(result)
+        return result
+
+    result = asyncio.run(run_fuzz())
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = output_path / f"fuzz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    reporter.save(
+        {"target": normalized, "found": [r.url for r in result.found]}, report_file
+    )
+    typer.echo(f"\nReport saved to: {report_file}")
 
 
 @app.command()
-def headers(
+def headers_cmd(
     target: str = target,
+    output_dir: str = output_dir,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
 ):
     """Security header analysis"""
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    normalized = normalize_url(target)
+
+    typer.echo(f"Analyzing headers on {normalized}")
+
+    async def run_headers():
+        result = await modules.analyze(normalized, None)
+        formatter.print_headers_results(result)
+        return result
+
+    result = asyncio.run(run_headers())
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = (
+        output_path / f"headers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    reporter.save(
+        {"target": normalized, "score": result.score, "grade": result.grade},
+        report_file,
+    )
+    typer.echo(f"\nReport saved to: {report_file}")
 
 
 @app.command()
 def sqli(
     target: str = target,
+    output_dir: str = output_dir,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
 ):
     """SQL injection probe"""
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    normalized = normalize_url(target)
+
+    typer.echo(f"Probing for SQL injection on {normalized}")
+
+    async def run_sqli():
+        result = await modules.probe(normalized)
+        formatter.print_sqli_results(result)
+        return result
+
+    result = asyncio.run(run_sqli())
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = output_path / f"sqli_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    reporter.save(
+        {
+            "target": normalized,
+            "vulnerable": result.vulnerable,
+            "payload": result.payload,
+        },
+        report_file,
+    )
+    typer.echo(f"\nReport saved to: {report_file}")
 
 
 @app.command()
 def xss(
     target: str = target,
+    output_dir: str = output_dir,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
 ):
     """Reflected XSS detection"""
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    normalized = normalize_url(target)
+
+    typer.echo(f"Detecting XSS on {normalized}")
+
+    async def run_xss():
+        result = await modules.detect(normalized)
+        formatter.print_xss_results(result)
+        return result
+
+    result = asyncio.run(run_xss())
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = output_path / f"xss_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    reporter.save(
+        {
+            "target": normalized,
+            "vulnerable": result.vulnerable,
+            "payload": result.payload,
+        },
+        report_file,
+    )
+    typer.echo(f"\nReport saved to: {report_file}")
 
 
 @app.command()
 def subdomain(
     target: str = target,
+    output_dir: str = output_dir,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
+    threads: int = threads,
 ):
     """Subdomain enumeration"""
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    domain = extract_domain(target)
+
+    typer.echo(f"Enumerating subdomains of {domain}")
+
+    async def run_subdomain():
+        result = await modules.enumerate(
+            domain, config["subdomain"]["wordlist"], threads
+        )
+        formatter.print_subdomain_results(result)
+        return result
+
+    result = asyncio.run(run_subdomain())
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = (
+        output_path / f"subdomain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    reporter.save({"target": domain, "subdomains": result.subdomains}, report_file)
+    typer.echo(f"\nReport saved to: {report_file}")
 
 
 @app.command()
@@ -172,3 +317,10 @@ def report(
     input_file: Path = typer.Argument(..., exists=True),
 ):
     """Re-generate report from JSON"""
+    data = reporter.load(input_file)
+    formatter.print_header(f"Report: {input_file.name}")
+    import json
+    from rich.console import Console
+
+    console = Console()
+    console.print_json(json.dumps(data, indent=2))
