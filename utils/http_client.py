@@ -63,9 +63,21 @@ class HTTPClient:
         self._client = None
 
     async def close(self) -> None:
+        """Close the underlying httpx client if open.
+
+        Several call sites in the codebase call ``await http.close()`` rather
+        than relying solely on the async context manager. Provide an
+        idempotent async close method so callers can safely close the client
+        whether it was entered via ``async with`` or instantiated manually.
+        """
         if self._client:
-            await self._client.aclose()
-            self._client = None
+            try:
+                await self._client.aclose()
+            finally:
+                self._client = None
+
+    # alias for compatibility with httpx naming
+    aclose = close
 
     async def get(self, url: str) -> Response:
         return await self._request("GET", url)
@@ -151,3 +163,4 @@ class HTTPClient:
         if elapsed < self.config.rate_limit:
             await asyncio.sleep(self.config.rate_limit - elapsed)
         self._last_request_time = asyncio.get_event_loop().time()
+
