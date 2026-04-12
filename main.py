@@ -1,3 +1,4 @@
+from enum import IntEnum
 import typer
 from cli.commands import app
 
