@@ -36,10 +36,14 @@ dev = [
     "pytest-cov>=5",
 ]
 [project.scripts]
-Pynzor = "main:app"
+# Expose the main entrypoint that prints the banner and invokes the Typer app.
+Pynzor = "main:main"
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["reports", "wordlists"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
