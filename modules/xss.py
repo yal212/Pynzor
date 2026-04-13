@@ -94,7 +94,10 @@ async def _test_payload(
     if not _check_reflected(html, payload):
         return None
 
-    soup = BeautifulSoup(html, "html.parser")
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:
+        soup = BeautifulSoup(html, "html.parser")
     scripts = soup.find_all("script")
 
     for script in scripts:
@@ -123,12 +126,7 @@ async def _test_payload(
             evidence="DOM XSS sink detected",
         )
 
-    return XSSVulnerability(
-        url=test_url,
-        payload=payload,
-        type="reflected",
-        evidence="Payload reflected",
-    )
+    return None
 
 
 async def detect_xss(
@@ -158,14 +156,14 @@ async def detect_xss(
 
         async def limited_test(payload: str) -> Optional[XSSVulnerability]:
             nonlocal errors, tested
-            async with semaphore:
-                for param in param_names:
+            for param in param_names:
+                async with semaphore:
                     tested += 1
                     test_url = f"{base_url}?{param}={payload}"
                     vuln = await _test_payload(client, test_url, payload)
-                    if vuln:
-                        return vuln
-                return None
+                if vuln:
+                    return vuln
+            return None
 
         tasks = [limited_test(p) for p in XSS_PAYLOADS[:max_payloads]]
         results = await asyncio.gather(*tasks, return_exceptions=True)
