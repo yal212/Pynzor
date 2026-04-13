@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pynzor Scan Report — {{ data.target }}</title>
+<style>
+  body { font-family: monospace; background: #0d0d0d; color: #e0e0e0; margin: 0; padding: 20px; }
+  h1, h2, h3 { color: #00ff88; }
+  h1 { border-bottom: 1px solid #333; padding-bottom: 8px; }
+  h2 { border-left: 4px solid #00ff88; padding-left: 10px; margin-top: 40px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #1a1a1a; color: #00ff88; text-align: left; padding: 8px 12px; }
+  td { padding: 6px 12px; border-bottom: 1px solid #222; }
+  tr:hover td { background: #1a1a1a; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.85em; }
+  .badge-open { background: #1a3d1a; color: #00ff88; }
+  .badge-closed { background: #2a1a1a; color: #ff4444; }
+  .badge-vuln { background: #3d1a1a; color: #ff6666; }
+  .badge-ok { background: #1a3d1a; color: #66ff66; }
+  .grade { font-size: 2em; font-weight: bold; }
+  .grade-A { color: #00ff88; }
+  .grade-B { color: #88ff00; }
+  .grade-C { color: #ffcc00; }
+  .grade-D { color: #ff8800; }
+  .grade-F { color: #ff3333; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+  .summary-card { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 16px; }
+  .summary-card .label { color: #888; font-size: 0.85em; }
+  .summary-card .value { font-size: 1.5em; color: #00ff88; font-weight: bold; }
+  .meta { color: #888; font-size: 0.9em; margin-bottom: 20px; }
+  pre { background: #1a1a1a; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<h1>Pynzor Scan Report</h1>
+<div class="meta">
+  <strong>Target:</strong> {{ data.target }} &nbsp;|&nbsp;
+  <strong>Scan Time:</strong> {{ data.scan_time }}
+</div>
+
+<div class="summary-grid">
+  <div class="summary-card">
+    <div class="label">Modules Completed</div>
+    <div class="value">{{ summary.modules_completed | length }}</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Vulnerabilities Found</div>
+    <div class="value" style="color: {% if summary.vulnerabilities_found > 0 %}#ff4444{% else %}#00ff88{% endif %}">{{ summary.vulnerabilities_found }}</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Total Requests</div>
+    <div class="value">{{ summary.total_requests }}</div>
+  </div>
+</div>
+
+{% set modules = data.get('modules', {}) %}
+
+{% if modules.scanner is defined %}
+<h2>Port Scanner</h2>
+<p>Open ports: <strong>{{ modules.scanner.open_count }}</strong></p>
+<table>
+  <tr><th>Port</th><th>Status</th><th>Service</th></tr>
+  {% for p in modules.scanner.ports %}
+  <tr>
+    <td>{{ p.port }}</td>
+    <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+    <td>{{ p.service or '—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if modules.headers is defined %}
+<h2>Security Headers</h2>
+<p>Score: <strong>{{ modules.headers.score }}</strong> &nbsp; Grade: <span class="grade grade-{{ modules.headers.get('grade', 'F') }}">{{ modules.headers.get('grade', '?') }}</span></p>
+{% if modules.headers.missing %}
+<h3>Missing Headers</h3>
+<ul>{% for h in modules.headers.missing %}<li>{{ h }}</li>{% endfor %}</ul>
+{% endif %}
+{% endif %}
+
+{% if modules.sqli is defined %}
+<h2>SQL Injection</h2>
+{% if modules.sqli.vulnerable %}
+<p><span class="badge badge-vuln">VULNERABLE</span> Payload: <code>{{ modules.sqli.payload }}</code></p>
+{% else %}
+<p><span class="badge badge-ok">CLEAN</span> No SQLi detected.</p>
+{% endif %}
+{% endif %}
+
+{% if modules.xss is defined %}
+<h2>XSS Detection</h2>
+{% if modules.xss.vulnerable %}
+<p><span class="badge badge-vuln">VULNERABLE</span> Payload: <code>{{ modules.xss.payload }}</code></p>
+{% else %}
+<p><span class="badge badge-ok">CLEAN</span> No XSS detected.</p>
+{% endif %}
+{% endif %}
+
+{% if modules.fuzzer is defined %}
+<h2>Directory Fuzzer</h2>
+<p>Paths found: <strong>{{ modules.fuzzer.found }}</strong></p>
+{% if modules.fuzzer.paths %}
+<ul>{% for path in modules.fuzzer.paths %}<li>{{ path }}</li>{% endfor %}</ul>
+{% endif %}
+{% endif %}
+
+{% if modules.subdomain is defined %}
+<h2>Subdomain Enumeration</h2>
+<p>Subdomains found: <strong>{{ modules.subdomain.found }}</strong></p>
+{% if modules.subdomain.subdomains %}
+<table>
+  <tr><th>Subdomain</th><th>Type</th><th>Value</th></tr>
+  {% for s in modules.subdomain.subdomains %}
+  <tr><td>{{ s.subdomain }}</td><td>{{ s.record_type }}</td><td>{{ s.value }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endif %}
+
+<h2>Raw Data</h2>
+<pre>{{ data | tojson(indent=2) }}</pre>
+
+</body>
+</html>

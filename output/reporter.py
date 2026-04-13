@@ -11,6 +11,18 @@ class Reporter:
         with open(output_path, "w") as f:
             json.dump(serialized, f, indent=2, default=str)
 
+    def save_html(self, data: Any, output_path: Path) -> None:
+        from jinja2 import Environment, FileSystemLoader
+        serialized = serialize_result(data)
+        summary = generate_scan_summary(serialized)
+        templates_dir = Path(__file__).parent / "templates"
+        env = Environment(loader=FileSystemLoader(str(templates_dir)))
+        template = env.get_template("report.html.j2")
+        html = template.render(data=serialized, summary=summary)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w") as f:
+            f.write(html)
+
     def load(self, input_path: Path) -> dict:
         with open(input_path, "r") as f:
             return json.load(f)
