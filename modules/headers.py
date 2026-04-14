@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from utils.http_client import HTTPClient, ClientConfig, Response
@@ -83,10 +83,10 @@ class HeaderResult:
     target: str
     start_time: datetime
     end_time: datetime
-    analysis: list[HeaderAnalysis] = None  # type: ignore[assignment]
+    analysis: list[HeaderAnalysis] = field(default_factory=list)
     score: int = 0
     grade: str = "F"
-    missing_headers: list[str] = None  # type: ignore[assignment]
+    missing_headers: list[str] = field(default_factory=list)
 
 
 async def analyze_headers(

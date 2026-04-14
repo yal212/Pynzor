@@ -141,13 +141,13 @@ async def probe_sqli(
 
         async def limited_test(payload: str) -> Optional[SQLiVulnerability]:
             nonlocal errors, tested
-            async with semaphore:
-                for param in param_names:
+            for param in param_names:
+                async with semaphore:
                     tested += 1
                     vuln = await _test_payload(client, base_url, param, payload)
-                    if vuln:
-                        return vuln
-                return None
+                if vuln:
+                    return vuln
+            return None
 
         tasks = [limited_test(p) for p in SQLI_PAYLOADS[:max_payloads]]
         results = await asyncio.gather(*tasks, return_exceptions=True)

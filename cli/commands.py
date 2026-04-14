@@ -135,9 +135,15 @@ def scan(
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(results, report_file)
-    typer.echo(f"\nReport saved to: {report_file}")
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    if format in ("json", "both"):
+        report_file = output_path / f"scan_{timestamp}.json"
+        reporter.save(results, report_file)
+        typer.echo(f"\nJSON report saved to: {report_file}")
+    if format in ("html", "both"):
+        report_file = output_path / f"scan_{timestamp}.html"
+        reporter.save_html(results, report_file)
+        typer.echo(f"HTML report saved to: {report_file}")
 
 
 @app.command()

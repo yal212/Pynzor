@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
+from pathlib import Path
 from utils.http_client import HTTPClient, ClientConfig, Response
 
 
@@ -87,5 +88,10 @@ async def fuzz_directory(
 
 
 def load_wordlist(path: str) -> list[str]:
-    with open(path, "r") as f:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Wordlist not found: {path}")
+    if not p.is_file():
+        raise ValueError(f"Wordlist path is not a file: {path}")
+    with open(p, "r") as f:
         return [line.strip() for line in f if line.strip() and not line.startswith("#")]

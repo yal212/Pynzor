@@ -49,11 +49,13 @@ async def enumerate_subdomains(
     subdomains = []
     errors = 0
     scanned = 0
+    counter_lock = asyncio.Lock()
 
     async def check_subdomain(sub: str) -> Optional[SubdomainResult]:
         nonlocal errors, scanned
         full_domain = f"{sub}.{root_domain}"
-        scanned += 1
+        async with counter_lock:
+            scanned += 1
 
         try:
             resolver = dns.resolver.Resolver()
@@ -74,7 +76,8 @@ async def enumerate_subdomains(
             except dns.resolver.NoAnswer:
                 pass
             except Exception:
-                pass
+                async with counter_lock:
+                    errors += 1
 
             try:
                 answers = resolver.resolve(full_domain, "CNAME")
@@ -90,13 +93,13 @@ async def enumerate_subdomains(
             except dns.resolver.NoAnswer:
                 pass
             except Exception:
-                pass
+                async with counter_lock:
+                    errors += 1
 
             if check_http:
                 try:
                     http_url = f"https://{full_domain}"
-                    async with http_client:
-                        response = await http_client.get(http_url)
+                    response = await http_client.get(http_url)
 
                     if not response.error and response.status_code < 500:
                         return SubdomainResult(
@@ -106,10 +109,12 @@ async def enumerate_subdomains(
                             verified=False,
                         )
                 except Exception:
-                    pass
+                    async with counter_lock:
+                        errors += 1
 
-        except Exception as e:
-            errors += 1
+        except Exception:
+            async with counter_lock:
+                errors += 1
 
         return None
 
