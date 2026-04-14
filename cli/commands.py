@@ -1,8 +1,10 @@
 import asyncio
 import typer
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from datetime import datetime
+from rich.console import Console
 
 from cli.options import (
     target,
@@ -24,6 +26,17 @@ app = typer.Typer(help="Pynzor - Web pentesting CLI")
 
 reporter = Reporter()
 formatter = Formatter()
+console = Console()
+
+
+@contextmanager
+def spinner(msg: str, use_color: bool = True):
+    if use_color:
+        with console.status(f"[cyan]{msg}[/cyan]", spinner="dots"):
+            yield
+    else:
+        console.print(msg + "...")
+        yield
 
 
 def load_config(config_path: Path | None = None):
@@ -71,9 +84,10 @@ def scan(
         http = HTTPClient(http_config)
 
         formatter.print_header("Port Scanner")
-        scanner_result = await modules.scan(
-            domain, ports=config["scanner"]["common_ports"]
-        )
+        with spinner("Scanning ports", not no_color):
+            scanner_result = await modules.scan(
+                domain, ports=config["scanner"]["common_ports"]
+            )
         results["modules"]["scanner"] = {
             "ports": [
                 {"port": p.port, "status": p.status, "service": p.service}
@@ -84,9 +98,10 @@ def scan(
         formatter.print_scanner_results(scanner_result)
 
         formatter.print_header("Directory Fuzzer")
-        fuzzer_result = await modules.fuzz(
-            normalized, config["fuzzer"]["wordlist"], config["fuzzer"]["threads"]
-        )
+        with spinner("Fuzzing directories", not no_color):
+            fuzzer_result = await modules.fuzz(
+                normalized, config["fuzzer"]["wordlist"], config["fuzzer"]["threads"]
+            )
         results["modules"]["fuzzer"] = {
             "found": len(fuzzer_result.found),
             "paths": [r.url for r in fuzzer_result.found[:20]],
@@ -94,7 +109,8 @@ def scan(
         formatter.print_fuzzer_results(fuzzer_result)
 
         formatter.print_header("Security Headers")
-        headers_result = await modules.analyze(normalized, http)
+        with spinner("Analyzing headers", not no_color):
+            headers_result = await modules.analyze(normalized, http)
         results["modules"]["headers"] = {
             "score": headers_result.score,
             "missing": headers_result.missing_headers,
@@ -102,7 +118,8 @@ def scan(
         formatter.print_headers_results(headers_result)
 
         formatter.print_header("SQL Injection")
-        sqli_result = await modules.probe(normalized, None)
+        with spinner("Probing for SQL injection", not no_color):
+            sqli_result = await modules.probe(normalized, None)
         results["modules"]["sqli"] = {
             "vulnerable": sqli_result.vulnerable,
             "payload": sqli_result.payload,
@@ -110,7 +127,8 @@ def scan(
         formatter.print_sqli_results(sqli_result)
 
         formatter.print_header("XSS Detection")
-        xss_result = await modules.detect(normalized, None)
+        with spinner("Detecting XSS", not no_color):
+            xss_result = await modules.detect(normalized, None)
         results["modules"]["xss"] = {
             "vulnerable": xss_result.vulnerable,
             "payload": xss_result.payload,
@@ -118,9 +136,10 @@ def scan(
         formatter.print_xss_results(xss_result)
 
         formatter.print_header("Subdomain Enumeration")
-        subdomain_result = await modules.enumerate(
-            domain, config["subdomain"]["wordlist"], config["subdomain"]["threads"]
-        )
+        with spinner("Enumerating subdomains", not no_color):
+            subdomain_result = await modules.enumerate(
+                domain, config["subdomain"]["wordlist"], config["subdomain"]["threads"]
+            )
         results["modules"]["subdomain"] = {
             "found": len(subdomain_result.subdomains),
             "subdomains": subdomain_result.subdomains[:20],
@@ -165,7 +184,8 @@ def fuzz(
     typer.echo(f"Fuzzing directories on {normalized}")
 
     async def run_fuzz():
-        result = await modules.fuzz(normalized, wordlist_path, threads)
+        with spinner("Fuzzing directories", not no_color):
+            result = await modules.fuzz(normalized, wordlist_path, threads)
         formatter.print_fuzzer_results(result)
         return result
 
@@ -196,7 +216,8 @@ def headers_cmd(
     typer.echo(f"Analyzing headers on {normalized}")
 
     async def run_headers():
-        result = await modules.analyze(normalized, None)
+        with spinner("Analyzing headers", not no_color):
+            result = await modules.analyze(normalized, None)
         formatter.print_headers_results(result)
         return result
 
@@ -230,7 +251,8 @@ def sqli(
     typer.echo(f"Probing for SQL injection on {normalized}")
 
     async def run_sqli():
-        result = await modules.probe(normalized)
+        with spinner("Probing for SQL injection", not no_color):
+            result = await modules.probe(normalized)
         formatter.print_sqli_results(result)
         return result
 
@@ -266,7 +288,8 @@ def xss(
     typer.echo(f"Detecting XSS on {normalized}")
 
     async def run_xss():
-        result = await modules.detect(normalized)
+        with spinner("Detecting XSS", not no_color):
+            result = await modules.detect(normalized)
         formatter.print_xss_results(result)
         return result
 
@@ -303,9 +326,10 @@ def subdomain(
     typer.echo(f"Enumerating subdomains of {domain}")
 
     async def run_subdomain():
-        result = await modules.enumerate(
-            domain, config["subdomain"]["wordlist"], threads
-        )
+        with spinner("Enumerating subdomains", not no_color):
+            result = await modules.enumerate(
+                domain, config["subdomain"]["wordlist"], threads
+            )
         formatter.print_subdomain_results(result)
         return result
 

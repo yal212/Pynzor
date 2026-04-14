@@ -1,16 +1,21 @@
 # Pynzor
 
-Web pentesting, sharpned.
+Web pentesting, sharpened.
 
-> An open-source Python CLI I built - scan ports, fuzz directories, hunt headers, and probe for vulns, all from one tool. No setup hedaches, just point it to a target and go.
+> An open-source Python CLI I built - scan ports, fuzz directories, hunt headers, and probe for vulns, all from one tool. No setup headaches, just point it to a target and go.
+
+## Demo
+
+<video src="demo/Pyznor-demo.mp4" controls width="100%"></video>
 
 ## Key Features
 
 - **Modular architecture** - each technique is an isolated Python module
-- **Rich terminal ouput** with colored coded severity levels
+- **Rich terminal output** with color-coded severity levels
+- **Loading indicators** - spinner feedback during every scan so you know it's working
 - **JSON and HTML report** export
 - **Async HTTP engine** via `httpx` for fast parallel requests
-- **Bundled wordlists** - works out of the box 
+- **Bundled wordlists** - works out of the box
 - **Fully tested** with `pytest`
 
 ## Installation
@@ -27,7 +32,7 @@ uv sync
 uv run Pynzor --help
 ```
 
-## Quick Usage 
+## Quick Usage
 
 ### Run a full scan and save an HTML report
 
@@ -62,32 +67,32 @@ Pynzor sqli -t "https://example.com/item?id=1"
 ### XSS scan with verbose output
 
 ```bash
-Pynzor xss -t htts://example.com -v
+Pynzor xss -t https://example.com -v
 ```
 
 ## Commands
 
 | Command | Description |
-|-----|-----|
+|---------|-------------|
 | scan | Full scan - run all modules |
-| fuzz | Directory/fuzzing |
+| fuzz | Directory fuzzing |
 | headers | Security header analysis |
 | sqli | SQL injection probe |
 | xss | Reflected XSS detection |
 | subdomain | Subdomain enumeration |
-| report | Re-generate report |
-
+| report | Re-generate report from JSON |
 
 ## Configuration
 
-Edit config.yaml to customize:
+Edit `config.yaml` to customize:
 - HTTP timeout, retries, user-agent
 - Rate limiting
 - Output format and directory
 - Port lists, wordlist paths
-- Threads count
+- Thread count
 
-## Requirement
+## Requirements
+
 - Python 3.10+
 - pip or uv
 
@@ -97,4 +102,4 @@ For authorized testing only. Only use on systems you own or have explicit writte
 
 ---
 
-MIT License - see LICENSE for detials.
+MIT License - see LICENSE for details.
