@@ -2,7 +2,7 @@
 
 Web pentesting, sharpened.
 
-> An open-source Python CLI I built - scan ports, fuzz directories, hunt headers, and probe for vulns, all from one tool. No setup headaches, just point it to a target and go.
+> An open-source Python CLI - scan ports, fuzz directories, hunt headers, and probe for vulns, all from one tool. No setup headaches, just point it to a target and go.
 
 ## Demo
 
@@ -18,7 +18,30 @@ Web pentesting, sharpened.
 - **Bundled wordlists** - works out of the box
 - **Fully tested** with `pytest`
 
-## Installation
+## Download
+
+No Python required. Grab the latest binary from [GitHub Releases](https://github.com/yal212/Pynzor/releases):
+
+| Platform | File |
+|----------|------|
+| Windows  | `Pynzor.exe` |
+| macOS    | `Pynzor` |
+| Linux    | `Pynzor` |
+
+**Windows:**
+```
+Pynzor.exe --help
+```
+
+**macOS / Linux:**
+```bash
+chmod +x Pynzor
+./Pynzor --help
+```
+
+## Install from Source
+
+Requires Python 3.10+.
 
 ```bash
 git clone https://github.com/yal212/Pynzor.git
@@ -34,7 +57,7 @@ uv run Pynzor --help
 
 ## Quick Usage
 
-### Run a full scan and save an HTML report
+### Full scan with HTML report
 
 ```bash
 Pynzor scan -t https://example.com -f html
@@ -46,7 +69,7 @@ Pynzor scan -t https://example.com -f html
 Pynzor fuzz -t https://example.com --wordlist ./mylist.txt --threads 30
 ```
 
-### Check security headers
+### Security header analysis
 
 ```bash
 Pynzor headers -t https://example.com
@@ -64,7 +87,7 @@ Pynzor subdomain -t https://example.com
 Pynzor sqli -t "https://example.com/item?id=1"
 ```
 
-### XSS scan with verbose output
+### XSS detection
 
 ```bash
 Pynzor xss -t https://example.com -v
@@ -74,27 +97,23 @@ Pynzor xss -t https://example.com -v
 
 | Command | Description |
 |---------|-------------|
-| scan | Full scan - run all modules |
-| fuzz | Directory fuzzing |
-| headers | Security header analysis |
-| sqli | SQL injection probe |
-| xss | Reflected XSS detection |
-| subdomain | Subdomain enumeration |
-| report | Re-generate report from JSON |
+| `scan` | Full scan - run all modules |
+| `fuzz` | Directory fuzzing |
+| `headers` | Security header analysis |
+| `sqli` | SQL injection probe |
+| `xss` | Reflected XSS detection |
+| `subdomain` | Subdomain enumeration |
+| `report` | Re-generate report from JSON |
 
 ## Configuration
 
-Edit `config.yaml` to customize:
+Edit `config.yaml` to customize behavior (source installs only):
+
 - HTTP timeout, retries, user-agent
 - Rate limiting
 - Output format and directory
-- Port lists, wordlist paths
-- Thread count
-
-## Requirements
-
-- Python 3.10+
-- pip or uv
+- Port lists and wordlist paths
+- Thread counts
 
 ## Disclaimer
 
