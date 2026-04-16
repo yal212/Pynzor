@@ -6,7 +6,7 @@ Web pentesting, sharpened.
 
 ## Demo
 
-![Pynzor Demo](https://youtu.be/0LFTOfkyf2A)
+[Pynzor Demo](https://youtu.be/0LFTOfkyf2A)
 
 ## Key Features
 
