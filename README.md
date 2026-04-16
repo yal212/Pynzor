@@ -25,18 +25,24 @@ No Python required. Grab the latest binary from [GitHub Releases](https://github
 | Platform | File |
 |----------|------|
 | Windows  | `Pynzor.exe` |
-| macOS    | `Pynzor` |
-| Linux    | `Pynzor` |
+| macOS    | `Pynzor-macos` |
+| Linux    | `Pynzor-linux` |
 
 **Windows:**
 ```
 Pynzor.exe --help
 ```
 
-**macOS / Linux:**
+**macOS:**
 ```bash
-chmod +x Pynzor
-./Pynzor --help
+chmod +x Pynzor-macos
+./Pynzor-macos --help
+```
+
+**Linux:**
+```bash
+chmod +x Pynzor-linux
+./Pynzor-linux --help
 ```
 
 ## Install from Source

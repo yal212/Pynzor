@@ -51,10 +51,13 @@ jobs:
       - name: Build binary
         run: pyinstaller Pynzor.spec
 
+      - name: Rename binary
+        run: mv dist/Pynzor dist/Pynzor-macos
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Pynzor
+          files: dist/Pynzor-macos
           generate_release_notes: false
 
   build-linux:
@@ -75,8 +78,11 @@ jobs:
       - name: Build binary
         run: pyinstaller Pynzor.spec
 
+      - name: Rename binary
+        run: mv dist/Pynzor dist/Pynzor-linux
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Pynzor
+          files: dist/Pynzor-linux
           generate_release_notes: false
