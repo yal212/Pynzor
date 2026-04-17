@@ -43,7 +43,7 @@ Homepage = "https://github.com/yal212/Pynzor"
 Repository = "https://github.com/yal212/Pynzor"
 
 [project.scripts]
-Pynzor = "main:main"
+Pynzor = "cli.main:main"
 
 [build-system]
 requires = ["setuptools>=61"]
