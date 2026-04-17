@@ -5,9 +5,9 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('wordlists', 'wordlists'),
+        ('cli/wordlists', 'cli/wordlists'),
         ('output/templates', 'output/templates'),
-        ('config.yaml', '.'),
+        ('cli/config.yaml', 'cli'),
     ],
     hiddenimports=[
         'dns',

@@ -42,7 +42,7 @@ def spinner(msg: str, use_color: bool = True):
 def load_config(config_path: Path | None = None):
     import yaml
 
-    default_config = Path(__file__).parent.parent / "config.yaml"
+    default_config = Path(__file__).parent / "config.yaml"
     config_file_path = config_path or default_config
     config_base = config_file_path.parent
 

@@ -1,12 +1,12 @@
 [project]
 name = "Pynzor"
-version = "1.0.0"
+version = "1.0.3"
 description = "Web pentesting CLI - scan ports, fuzz directories, hunt headers, and probe for vulns"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Pynzor", email = "pynzor@example.com"}
+    {name = "yal212", email = "yal212yal@gmail.com"}
 ]
 keywords = ["security", "pentesting", "web", "reconnaissance", "scanner"]
 classifiers = [
@@ -29,6 +29,7 @@ dependencies = [
     "pyyaml>=6",
     "jinja2>=3.1",
 ]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
@@ -36,20 +37,33 @@ dev = [
     "respx>=0.21",
     "pytest-cov>=5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/yal212/Pynzor"
+Repository = "https://github.com/yal212/Pynzor"
+
 [project.scripts]
-# Expose the main entrypoint that prints the banner and invokes the Typer app.
 Pynzor = "main:main"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["reports", "wordlists"]
+exclude = ["reports"]
+
+[tool.setuptools.package-data]
+"cli" = ["config.yaml", "wordlists/*"]
+"output" = ["templates/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
 [tool.coverage.run]
 source = ["Pynzor"]
 omit = ["tests/*", "*/conftest.py"]
+
 [tool.pyright]
 venv = ".venv"
