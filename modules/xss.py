@@ -28,6 +28,14 @@ XSS_PAYLOADS = [
     "<script>eval(atob('YWxlcnQoMSk'))</script>",
     "<script>Function('alert(1)')()</script>",
     "javascript:alert(1)",
+    # Attribute injection context
+    '" onerror="alert(1)',
+    "' onmouseover='alert(1)",
+    '"><img src=x onerror=alert(1)>',
+    # JavaScript context breakout
+    "';alert(1)//",
+    '";alert(1)//',
+    "</script><script>alert(1)</script>",
 ]
 
 
@@ -51,13 +59,17 @@ class XSSResult:
     payload: str = ""
 
 
-def _check_reflected(html: str, payload: str) -> bool:
-    if payload in html:
-        return True
+def _is_raw_reflected(html: str, payload: str) -> bool:
+    return payload in html
+
+
+def _is_encoded_reflected(html: str, payload: str) -> bool:
     encoded = payload.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-    if encoded in html:
-        return True
-    return False
+    return encoded in html
+
+
+def _check_reflected(html: str, payload: str) -> bool:
+    return _is_raw_reflected(html, payload) or _is_encoded_reflected(html, payload)
 
 
 def _check_dom_xss(html: str) -> bool:
@@ -110,12 +122,12 @@ async def _test_payload(
                 evidence="Script tag with payload executed",
             )
 
-    if "<script" in payload and "<script" in html:
+    if _is_raw_reflected(html, payload):
         return XSSVulnerability(
             url=test_url,
             payload=payload,
             type="reflected",
-            evidence="Payload reflected in HTML",
+            evidence="Payload reflected verbatim in HTML response",
         )
 
     if _check_dom_xss(html):
@@ -129,6 +141,66 @@ async def _test_payload(
     return None
 
 
+def _extract_forms(html: str, base_url: str) -> list[dict]:
+    """Parse <form> elements and return list of {action, method, fields}."""
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:
+        soup = BeautifulSoup(html, "html.parser")
+
+    from urllib.parse import urljoin
+
+    forms = []
+    for form in soup.find_all("form"):
+        raw_action = form.get("action") or ""
+        action = str(raw_action) if raw_action else base_url
+        if not action.startswith("http"):
+            action = urljoin(base_url, action)
+        raw_method = form.get("method") or "get"
+        method = str(raw_method).lower()
+        fields = [
+            str(inp.get("name"))
+            for inp in form.find_all(["input", "textarea", "select"])
+            if inp.get("name")
+        ]
+        if fields:
+            forms.append({"action": action, "method": method, "fields": fields})
+    return forms
+
+
+async def _test_payload_post(
+    client: HTTPClient,
+    action: str,
+    field_names: list[str],
+    payload: str,
+) -> Optional[XSSVulnerability]:
+    """POST payload into each form field and check the response."""
+    for field in field_names:
+        data = {f: "test" for f in field_names}
+        data[field] = payload
+        response = await client.post(action, data=data)
+        if response.error:
+            continue
+        html = response.body or ""
+        if not _check_reflected(html, payload):
+            continue
+        if _is_raw_reflected(html, payload):
+            return XSSVulnerability(
+                url=action,
+                payload=payload,
+                type="reflected",
+                evidence=f"Payload reflected via POST field '{field}'",
+            )
+        if _check_dom_xss(html):
+            return XSSVulnerability(
+                url=action,
+                payload=payload,
+                type="dom",
+                evidence=f"DOM XSS sink detected via POST field '{field}'",
+            )
+    return None
+
+
 async def detect_xss(
     target: str,
     max_payloads: int = 20,
@@ -137,24 +209,29 @@ async def detect_xss(
     start_time = datetime.now()
     result = XSSResult(target=target, start_time=start_time, end_time=start_time)
 
-    if "?" not in target or "=" not in target:
-        result.end_time = datetime.now()
-        return result
-
-    base_url, params = target.split("?", 1)
-    param_names = [p.split("=")[0] for p in params.split("&") if "=" in p]
+    base_url = target.split("?")[0]
+    param_names: list[str] = []
+    if "?" in target and "=" in target:
+        _, params = target.split("?", 1)
+        param_names = [p.split("=")[0] for p in params.split("&") if "=" in p]
 
     config = ClientConfig(rate_limit=0.2)
     client = HTTPClient(config)
 
-    vulnerabilities = []
+    vulnerabilities: list[XSSVulnerability] = []
     errors = 0
     tested = 0
 
     async with client:
         semaphore = asyncio.Semaphore(threads)
 
-        async def limited_test(payload: str) -> Optional[XSSVulnerability]:
+        # Fetch the page to discover HTML forms for POST scanning
+        page_response = await client.get(target)
+        forms: list[dict] = []
+        if not page_response.error and page_response.body:
+            forms = _extract_forms(page_response.body, base_url)
+
+        async def limited_test_get(payload: str) -> Optional[XSSVulnerability]:
             nonlocal errors, tested
             for param in param_names:
                 async with semaphore:
@@ -165,14 +242,34 @@ async def detect_xss(
                     return vuln
             return None
 
-        tasks = [limited_test(p) for p in XSS_PAYLOADS[:max_payloads]]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        async def limited_test_post(payload: str) -> Optional[XSSVulnerability]:
+            nonlocal errors, tested
+            for form in forms:
+                async with semaphore:
+                    tested += 1
+                    vuln = await _test_payload_post(
+                        client, form["action"], form["fields"], payload
+                    )
+                if vuln:
+                    return vuln
+            return None
 
-        for r in results:
+        payloads = XSS_PAYLOADS[:max_payloads]
+        get_tasks = [limited_test_get(p) for p in payloads] if param_names else []
+        post_tasks = [limited_test_post(p) for p in payloads] if forms else []
+
+        all_results = await asyncio.gather(*get_tasks, *post_tasks, return_exceptions=True)
+
+        for r in all_results:
             if isinstance(r, XSSVulnerability):
                 vulnerabilities.append(r)
             elif isinstance(r, Exception):
                 errors += 1
+
+    # Early exit if no params and no forms
+    if not param_names and not forms:
+        result.end_time = datetime.now()
+        return result
 
     result.vulnerabilities = vulnerabilities
     result.tested = tested
