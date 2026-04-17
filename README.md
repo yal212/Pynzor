@@ -1,53 +1,56 @@
-# Pynzor
+<div align="center">
 
-Web pentesting, sharpened.
+```
+██████╗ ██╗   ██╗███╗   ██╗███████╗ ██████╗ ██████╗
+██╔══██╗╚██╗ ██╔╝████╗  ██║╚══███╔╝██╔═══██╗██╔══██╗
+██████╔╝ ╚████╔╝ ██╔██╗ ██║  ███╔╝ ██║   ██║██████╔╝
+██╔═══╝   ╚██╔╝  ██║╚██╗██║ ███╔╝  ██║   ██║██╔══██╗
+██║        ██║   ██║ ╚████║███████╗╚██████╔╝██║  ██║
+╚═╝        ╚═╝   ╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
+```
 
-> An open-source Python CLI - scan ports, fuzz directories, hunt headers, and probe for vulns, all from one tool. No setup headaches, just point it to a target and go.
+**Web pentesting, sharpened.**
+
+[![PyPI version](https://img.shields.io/pypi/v/Pynzor?color=blue)](https://pypi.org/project/Pynzor/)
+[![Python](https://img.shields.io/pypi/pyversions/Pynzor)](https://pypi.org/project/Pynzor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
+[![GitHub Stars](https://img.shields.io/github/stars/yal212/Pynzor?style=social)](https://github.com/yal212/Pynzor/stargazers)
+
+Scan ports · Fuzz directories · Hunt headers · Probe for SQLi & XSS · Enumerate subdomains
+
+[Demo](#demo) · [Install](#install) · [Usage](#usage) · [Commands](#commands) · [Download](#download)
+
+</div>
+
+---
 
 ## Demo
 
-[Pynzor Demo](https://youtu.be/0LFTOfkyf2A)
+[Watch the demo on YouTube](https://youtu.be/0LFTOfkyf2A)
 
-## Key Features
+---
 
-- **Modular architecture** - each technique is an isolated Python module
-- **Rich terminal output** with color-coded severity levels
-- **Loading indicators** - spinner feedback during every scan so you know it's working
-- **JSON and HTML report** export
-- **Async HTTP engine** via `httpx` for fast parallel requests
-- **Bundled wordlists** - works out of the box
-- **Fully tested** with `pytest`
+## Features
 
-## Download
+- **One command, full scan** — run every module against a target in a single invocation
+- **Modular architecture** — each technique is an isolated Python module, easy to extend
+- **Rich terminal output** — color-coded severity levels, live spinners, clean layout
+- **JSON & HTML reports** — export results for sharing or archiving
+- **Async HTTP engine** — `httpx`-powered parallel requests for speed
+- **Bundled wordlists** — works out of the box, no setup required
+- **Fully tested** — `pytest` test suite with async support
 
-No Python required. Grab the latest binary from [GitHub Releases](https://github.com/yal212/Pynzor/releases):
+---
 
-| Platform | File |
-|----------|------|
-| Windows  | `Pynzor.exe` |
-| macOS    | `Pynzor-macos` |
-| Linux    | `Pynzor-linux` |
+## Install
 
-**Windows:**
-```
-Pynzor.exe --help
-```
+### pip (recommended)
 
-**macOS:**
 ```bash
-chmod +x Pynzor-macos
-./Pynzor-macos --help
+pip install Pynzor
 ```
 
-**Linux:**
-```bash
-chmod +x Pynzor-linux
-./Pynzor-linux --help
-```
-
-## Install from Source
-
-Requires Python 3.10+.
+### From source
 
 ```bash
 git clone https://github.com/yal212/Pynzor.git
@@ -55,13 +58,30 @@ cd Pynzor
 pip install -e .
 ```
 
-Or with uv (recommended):
+### uv
+
 ```bash
 uv sync
 uv run Pynzor --help
 ```
 
-## Quick Usage
+---
+
+## Download
+
+No Python required — grab a prebuilt binary from [GitHub Releases](https://github.com/yal212/Pynzor/releases/latest):
+
+| Platform | File | Run |
+|----------|------|-----|
+| Windows  | `Pynzor.exe` | `Pynzor.exe --help` |
+| macOS    | `Pynzor-macos` | `chmod +x Pynzor-macos && ./Pynzor-macos --help` |
+| Linux    | `Pynzor-linux` | `chmod +x Pynzor-linux && ./Pynzor-linux --help` |
+
+> **macOS note:** If blocked by Gatekeeper, run `xattr -d com.apple.quarantine ./Pynzor-macos` or allow it via System Settings → Privacy & Security.
+
+---
+
+## Usage
 
 ### Full scan with HTML report
 
@@ -99,32 +119,41 @@ Pynzor sqli -t "https://example.com/item?id=1"
 Pynzor xss -t https://example.com -v
 ```
 
+---
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `scan` | Full scan - run all modules |
-| `fuzz` | Directory fuzzing |
+| `scan` | Full scan — run all modules |
+| `fuzz` | Directory & file fuzzing |
 | `headers` | Security header analysis |
 | `sqli` | SQL injection probe |
 | `xss` | Reflected XSS detection |
 | `subdomain` | Subdomain enumeration |
 | `report` | Re-generate report from JSON |
 
+---
+
 ## Configuration
 
-Edit `config.yaml` to customize behavior (source installs only):
+Source installs include a `config.yaml` for fine-tuning:
 
-- HTTP timeout, retries, user-agent
-- Rate limiting
+- HTTP timeout, retries, user-agent string
+- Rate limiting and redirect behavior
 - Output format and directory
-- Port lists and wordlist paths
-- Thread counts
-
-## Disclaimer
-
-For authorized testing only. Only use on systems you own or have explicit written permission to test.
+- Port lists, wordlist paths, thread counts
 
 ---
 
-MIT License - see LICENSE for details.
+## Disclaimer
+
+Pynzor is for **authorized testing only**. Only use it on systems you own or have explicit written permission to test. Unauthorized use is illegal and unethical.
+
+---
+
+<div align="center">
+
+MIT License — see [LICENSE](LICENSE.md) · Made by [yal212](https://github.com/yal212)
+
+</div>
