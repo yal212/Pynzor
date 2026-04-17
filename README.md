@@ -26,7 +26,7 @@ Scan ports · Fuzz directories · Hunt headers · Probe for SQLi & XSS · Enumer
 
 ## Demo
 
-[Watch the demo on YouTube](https://youtu.be/0LFTOfkyf2A)
+[Watch the demo on YouTube](https://youtu.be/oFKiFmnZOr4?si=Bz5Yv-VGd-BdK28)
 
 ---
 
