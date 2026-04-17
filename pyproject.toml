@@ -1,6 +1,6 @@
 [project]
 name = "Pynzor"
-version = "1.0.4"
+version = "1.0.5"
 description = "Web pentesting CLI - scan ports, fuzz directories, hunt headers, and probe for vulns"
 readme = "README.md"
 requires-python = ">=3.10"
