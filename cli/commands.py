@@ -15,6 +15,8 @@ from cli.options import (
     threads,
     no_color,
     config_file,
+    no_baseline,
+    include_wildcard,
 )
 from utils.http_client import HTTPClient, ClientConfig
 from utils.validators import normalize_url, extract_domain
@@ -187,6 +189,7 @@ def fuzz(
     output_dir: str = output_dir,
     no_color: bool = no_color,
     config_file: Path = config_file,
+    no_baseline: bool = no_baseline,
 ):
     """Directory/file fuzzing"""
     config = load_config(config_file)
@@ -199,7 +202,12 @@ def fuzz(
 
     async def run_fuzz():
         with spinner("Fuzzing directories", not no_color):
-            result = await modules.fuzz(normalized, wordlist_path, threads)
+            result = await modules.fuzz(
+                normalized,
+                wordlist_path,
+                threads,
+                use_baseline=not no_baseline,
+            )
         formatter.print_fuzzer_results(result)
         return result
 
@@ -330,6 +338,7 @@ def subdomain(
     no_color: bool = no_color,
     config_file: Path = config_file,
     threads: int = threads,
+    include_wildcard: bool = include_wildcard,
 ):
     """Subdomain enumeration"""
     config = load_config(config_file)
@@ -342,7 +351,10 @@ def subdomain(
     async def run_subdomain():
         with spinner("Enumerating subdomains", not no_color):
             result = await modules.enumerate(
-                domain, config["subdomain"]["wordlist"], threads
+                domain,
+                config["subdomain"]["wordlist"],
+                threads,
+                include_wildcard=include_wildcard,
             )
         formatter.print_subdomain_results(result)
         return result

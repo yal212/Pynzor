@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pynzor Scan Report — https://google.com</title>
+<style>
+  body { font-family: monospace; background: #0d0d0d; color: #e0e0e0; margin: 0; padding: 20px; }
+  h1, h2, h3 { color: #00ff88; }
+  h1 { border-bottom: 1px solid #333; padding-bottom: 8px; }
+  h2 { border-left: 4px solid #00ff88; padding-left: 10px; margin-top: 40px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #1a1a1a; color: #00ff88; text-align: left; padding: 8px 12px; }
+  td { padding: 6px 12px; border-bottom: 1px solid #222; }
+  tr:hover td { background: #1a1a1a; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.85em; }
+  .badge-open { background: #1a3d1a; color: #00ff88; }
+  .badge-closed { background: #2a1a1a; color: #ff4444; }
+  .badge-vuln { background: #3d1a1a; color: #ff6666; }
+  .badge-ok { background: #1a3d1a; color: #66ff66; }
+  .grade { font-size: 2em; font-weight: bold; }
+  .grade-A { color: #00ff88; }
+  .grade-B { color: #88ff00; }
+  .grade-C { color: #ffcc00; }
+  .grade-D { color: #ff8800; }
+  .grade-F { color: #ff3333; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+  .summary-card { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 16px; }
+  .summary-card .label { color: #888; font-size: 0.85em; }
+  .summary-card .value { font-size: 1.5em; color: #00ff88; font-weight: bold; }
+  .meta { color: #888; font-size: 0.9em; margin-bottom: 20px; }
+  pre { background: #1a1a1a; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<h1>Pynzor Scan Report</h1>
+<div class="meta">
+  <strong>Target:</strong> https://google.com &nbsp;|&nbsp;
+  <strong>Scan Time:</strong> 2026-04-17T18:45:45.949620
+</div>
+
+<div class="summary-grid">
+  <div class="summary-card">
+    <div class="label">Modules Completed</div>
+    <div class="value">6</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Vulnerabilities Found</div>
+    <div class="value" style="color: #ff4444">2</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Total Requests</div>
+    <div class="value">0</div>
+  </div>
+</div>
+
+
+
+
+<h2>Port Scanner</h2>
+<p>Open ports: <strong>2</strong></p>
+<table>
+  <tr><th>Port</th><th>Status</th><th>Service</th></tr>
+  
+  <tr>
+    <td>21</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>FTP</td>
+  </tr>
+  
+  <tr>
+    <td>22</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>SSH</td>
+  </tr>
+  
+  <tr>
+    <td>23</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>Telnet</td>
+  </tr>
+  
+  <tr>
+    <td>25</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>SMTP</td>
+  </tr>
+  
+  <tr>
+    <td>53</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>DNS</td>
+  </tr>
+  
+  <tr>
+    <td>80</td>
+    <td><span class="badge badge-open">open</span></td>
+    <td>HTTP</td>
+  </tr>
+  
+  <tr>
+    <td>110</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>POP3</td>
+  </tr>
+  
+  <tr>
+    <td>143</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>IMAP</td>
+  </tr>
+  
+  <tr>
+    <td>443</td>
+    <td><span class="badge badge-open">open</span></td>
+    <td>HTTPS</td>
+  </tr>
+  
+  <tr>
+    <td>445</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>SMB</td>
+  </tr>
+  
+  <tr>
+    <td>993</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>IMAPS</td>
+  </tr>
+  
+  <tr>
+    <td>995</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>POP3S</td>
+  </tr>
+  
+  <tr>
+    <td>3306</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>MySQL</td>
+  </tr>
+  
+  <tr>
+    <td>3389</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>RDP</td>
+  </tr>
+  
+  <tr>
+    <td>5432</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>PostgreSQL</td>
+  </tr>
+  
+  <tr>
+    <td>5900</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>VNC</td>
+  </tr>
+  
+  <tr>
+    <td>6379</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>Redis</td>
+  </tr>
+  
+  <tr>
+    <td>8080</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>HTTP-Proxy</td>
+  </tr>
+  
+  <tr>
+    <td>8443</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>HTTPS-Alt</td>
+  </tr>
+  
+  <tr>
+    <td>27017</td>
+    <td><span class="badge badge-filtered">filtered</span></td>
+    <td>MongoDB</td>
+  </tr>
+  
+</table>
+
+
+
+<h2>Security Headers</h2>
+<p>Score: <strong>40</strong> &nbsp; Grade: <span class="grade grade-F">?</span></p>
+
+<h3>Missing Headers</h3>
+<ul><li>Content-Security-Policy</li><li>X-Content-Type-Options</li><li>Referrer-Policy</li><li>Cross-Origin-Embedder-Policy</li><li>Cross-Origin-Resource-Policy</li></ul>
+
+
+
+
+<h2>SQL Injection</h2>
+
+<p><span class="badge badge-ok">CLEAN</span> No SQLi detected.</p>
+
+
+
+
+<h2>XSS Detection</h2>
+
+<p><span class="badge badge-ok">CLEAN</span> No XSS detected.</p>
+
+
+
+
+<h2>Directory Fuzzer</h2>
+<p>Paths found: <strong>40</strong></p>
+
+<ul><li>https://myaccount.google.com/intro/dashboard</li><li>https://www.google.com/imghp</li><li>https://www.google.com/robots.txt</li><li>https://www.google.com/sitemap.xml</li><li>https://www.google.com/humans.txt</li><li>https://www.google.com/crossdomain.xml</li><li>https://jobs.google.com/about/</li><li>https://www.google.com/</li><li>https://developers.google.com/apps-script/</li><li>https://safety.google/safety/</li><li>https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Faccounts.google.com%2F&dsh=S-1827834776%3A1776422751055824&followup=https%3A%2F%2Faccounts.google.com%2F&passive=1209600&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AT1y2_W6eFUduUcyT65IWOvAEH3wTkJqwrOBn7S9p-GCzevkqJMIKwNh_P5zKqyu-neK4ff0rRpG</li><li>https://www.google.com/webhp</li><li>https://blog.google/</li><li>https://news.google.com/home?hl=en-US&gl=US&ceid=US:en</li><li>https://about.google/company-info/contact-google/</li><li>https://support.google.com/</li><li>https://about.google/</li><li>https://safety.google/</li><li>https://home.google.com/welcome/</li><li>https://www.google.com/maps</li></ul>
+
+
+
+
+<h2>Subdomain Enumeration</h2>
+<p>Subdomains found: <strong>75</strong></p>
+
+<table>
+  <tr><th>Subdomain</th><th>Type</th><th>Value</th></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+  <tr><td></td><td></td><td></td></tr>
+  
+</table>
+
+
+
+<h2>Raw Data</h2>
+<pre>{
+  "modules": {
+    "fuzzer": {
+      "found": 40,
+      "paths": [
+        "https://myaccount.google.com/intro/dashboard",
+        "https://www.google.com/imghp",
+        "https://www.google.com/robots.txt",
+        "https://www.google.com/sitemap.xml",
+        "https://www.google.com/humans.txt",
+        "https://www.google.com/crossdomain.xml",
+        "https://jobs.google.com/about/",
+        "https://www.google.com/",
+        "https://developers.google.com/apps-script/",
+        "https://safety.google/safety/",
+        "https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Faccounts.google.com%2F\u0026dsh=S-1827834776%3A1776422751055824\u0026followup=https%3A%2F%2Faccounts.google.com%2F\u0026passive=1209600\u0026flowName=GlifWebSignIn\u0026flowEntry=ServiceLogin\u0026ifkv=AT1y2_W6eFUduUcyT65IWOvAEH3wTkJqwrOBn7S9p-GCzevkqJMIKwNh_P5zKqyu-neK4ff0rRpG",
+        "https://www.google.com/webhp",
+        "https://blog.google/",
+        "https://news.google.com/home?hl=en-US\u0026gl=US\u0026ceid=US:en",
+        "https://about.google/company-info/contact-google/",
+        "https://support.google.com/",
+        "https://about.google/",
+        "https://safety.google/",
+        "https://home.google.com/welcome/",
+        "https://www.google.com/maps"
+      ]
+    },
+    "headers": {
+      "missing": [
+        "Content-Security-Policy",
+        "X-Content-Type-Options",
+        "Referrer-Policy",
+        "Cross-Origin-Embedder-Policy",
+        "Cross-Origin-Resource-Policy"
+      ],
+      "score": 40
+    },
+    "scanner": {
+      "open_count": 2,
+      "ports": [
+        {
+          "port": 21,
+          "service": "FTP",
+          "status": "filtered"
+        },
+        {
+          "port": 22,
+          "service": "SSH",
+          "status": "filtered"
+        },
+        {
+          "port": 23,
+          "service": "Telnet",
+          "status": "filtered"
+        },
+        {
+          "port": 25,
+          "service": "SMTP",
+          "status": "filtered"
+        },
+        {
+          "port": 53,
+          "service": "DNS",
+          "status": "filtered"
+        },
+        {
+          "port": 80,
+          "service": "HTTP",
+          "status": "open"
+        },
+        {
+          "port": 110,
+          "service": "POP3",
+          "status": "filtered"
+        },
+        {
+          "port": 143,
+          "service": "IMAP",
+          "status": "filtered"
+        },
+        {
+          "port": 443,
+          "service": "HTTPS",
+          "status": "open"
+        },
+        {
+          "port": 445,
+          "service": "SMB",
+          "status": "filtered"
+        },
+        {
+          "port": 993,
+          "service": "IMAPS",
+          "status": "filtered"
+        },
+        {
+          "port": 995,
+          "service": "POP3S",
+          "status": "filtered"
+        },
+        {
+          "port": 3306,
+          "service": "MySQL",
+          "status": "filtered"
+        },
+        {
+          "port": 3389,
+          "service": "RDP",
+          "status": "filtered"
+        },
+        {
+          "port": 5432,
+          "service": "PostgreSQL",
+          "status": "filtered"
+        },
+        {
+          "port": 5900,
+          "service": "VNC",
+          "status": "filtered"
+        },
+        {
+          "port": 6379,
+          "service": "Redis",
+          "status": "filtered"
+        },
+        {
+          "port": 8080,
+          "service": "HTTP-Proxy",
+          "status": "filtered"
+        },
+        {
+          "port": 8443,
+          "service": "HTTPS-Alt",
+          "status": "filtered"
+        },
+        {
+          "port": 27017,
+          "service": "MongoDB",
+          "status": "filtered"
+        }
+      ]
+    },
+    "sqli": {
+      "payload": "",
+      "vulnerable": false
+    },
+    "subdomain": {
+      "found": 75,
+      "subdomains": [
+        "SubdomainResult(subdomain=\u0027www.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.251.150.119, 142.251.157.119, 142.251.151.119, 142.251.155.119, 142.251.156.119, 142.251.153.119, 142.251.154.119, 142.251.152.119\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027smtp.google.com\u0027, record_type=\u0027A\u0027, value=\u002774.125.203.26, 74.125.204.27, 74.125.204.26, 64.233.187.27, 64.233.187.26\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027ns1.google.com\u0027, record_type=\u0027A\u0027, value=\u0027216.239.32.10\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027mail.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.204.37\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027web.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.204.46\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027ns.google.com\u0027, record_type=\u0027A\u0027, value=\u0027216.239.32.10\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027images.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.198.78\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027ns2.google.com\u0027, record_type=\u0027A\u0027, value=\u0027216.239.34.10\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027ns1.google.com\u0027, record_type=\u0027A\u0027, value=\u0027216.239.32.10\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027cloud.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.66.78\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027api.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.196.196\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027shop.google.com\u0027, record_type=\u0027A\u0027, value=\u0027108.177.125.92\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027blog.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.77.9\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027docs.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.204.46\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027support.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.204.46\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027video.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.196.206\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027videos.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.196.206\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027m.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.77.11\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027download.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.196.196\u0027, verified=True)",
+        "SubdomainResult(subdomain=\u0027Downloads.google.com\u0027, record_type=\u0027A\u0027, value=\u0027142.250.196.196\u0027, verified=True)"
+      ]
+    },
+    "xss": {
+      "payload": "",
+      "vulnerable": false
+    }
+  },
+  "scan_time": "2026-04-17T18:45:45.949620",
+  "target": "https://google.com"
+}</pre>
+
+</body>
+</html>

@@ -58,3 +58,15 @@ threads = typer.Option(
     "--threads",
     help="Number of threads"
 )
+
+no_baseline = typer.Option(
+    False,
+    "--no-baseline",
+    help="Disable SPA/catch-all baseline filtering (report all matching paths)",
+)
+
+include_wildcard = typer.Option(
+    False,
+    "--include-wildcard",
+    help="Include subdomains matching wildcard DNS (off by default to reduce false positives)",
+)

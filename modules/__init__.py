@@ -18,9 +18,16 @@ async def scan(
     return await _scanner.scan(target, ports, timeout, concurrent)
 
 
-async def fuzz(target: str, wordlist_path: str, threads: int = 20):
+async def fuzz(
+    target: str,
+    wordlist_path: str,
+    threads: int = 20,
+    use_baseline: bool = True,
+):
     wordlist = _fuzzer.load_wordlist(wordlist_path)
-    return await _fuzzer.fuzz_directory(target, wordlist, threads)
+    return await _fuzzer.fuzz_directory(
+        target, wordlist, threads, use_baseline=use_baseline
+    )
 
 
 async def analyze(target: str, http_client: HTTPClient | None = None):
@@ -35,6 +42,13 @@ async def detect(target: str, http_client: HTTPClient | None = None):
     return await _xss.detect_xss(target)
 
 
-async def enumerate(target: str, wordlist_path: str, threads: int = 20):
+async def enumerate(
+    target: str,
+    wordlist_path: str,
+    threads: int = 20,
+    include_wildcard: bool = False,
+):
     wordlist = _fuzzer.load_wordlist(wordlist_path)
-    return await _subdomain.enumerate_subdomains(target, wordlist, threads)
+    return await _subdomain.enumerate_subdomains(
+        target, wordlist, threads, include_wildcard=include_wildcard
+    )

@@ -55,6 +55,10 @@ class Formatter:
         console.print(table)
 
     def print_fuzzer_results(self, result) -> None:
+        if getattr(result, "baseline_detected", False):
+            note = getattr(result, "baseline_note", None) or "Catch-all baseline detected"
+            console.print(f"[yellow]![/yellow] {note}")
+
         table = Table(
             title="Directory Fuzz Results",
             show_header=True,
@@ -80,6 +84,12 @@ class Formatter:
 
         console.print(table)
         console.print(f"Found {len(result.found)} directories")
+        filtered = getattr(result, "baseline_filtered", 0)
+        if filtered:
+            console.print(
+                f"[dim]Filtered {filtered} paths matching catch-all baseline "
+                "(use --no-baseline to disable)[/dim]"
+            )
 
     def print_headers_results(self, result) -> None:
         table = Table(
@@ -127,6 +137,14 @@ class Formatter:
             console.print("[green]No XSS vulnerabilities found[/green]")
 
     def print_subdomain_results(self, result) -> None:
+        if getattr(result, "wildcard_detected", False):
+            ips = ", ".join(getattr(result, "wildcard_ips", []))
+            console.print(
+                f"[yellow]![/yellow] Wildcard DNS detected → {ips}. "
+                "Subdomains resolving to these IPs are filtered "
+                "(use --include-wildcard to show them)."
+            )
+
         table = Table(
             title="Subdomain Enumeration", show_header=True, header_style="bold magenta"
         )
@@ -139,6 +157,11 @@ class Formatter:
 
         console.print(table)
         console.print(f"Found {len(result.subdomains)} subdomains")
+        filtered = getattr(result, "wildcard_filtered", 0)
+        if filtered:
+            console.print(
+                f"[dim]Filtered {filtered} subdomains matching wildcard DNS[/dim]"
+            )
 
 
 def format_title(text: str, style: str = "bold cyan") -> Text:

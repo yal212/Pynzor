@@ -1,0 +1,179 @@
+{
+  "target": "https://google.com",
+  "scan_time": "2026-04-17T18:45:45.949620",
+  "modules": {
+    "scanner": {
+      "ports": [
+        {
+          "port": 21,
+          "status": "filtered",
+          "service": "FTP"
+        },
+        {
+          "port": 22,
+          "status": "filtered",
+          "service": "SSH"
+        },
+        {
+          "port": 23,
+          "status": "filtered",
+          "service": "Telnet"
+        },
+        {
+          "port": 25,
+          "status": "filtered",
+          "service": "SMTP"
+        },
+        {
+          "port": 53,
+          "status": "filtered",
+          "service": "DNS"
+        },
+        {
+          "port": 80,
+          "status": "open",
+          "service": "HTTP"
+        },
+        {
+          "port": 110,
+          "status": "filtered",
+          "service": "POP3"
+        },
+        {
+          "port": 143,
+          "status": "filtered",
+          "service": "IMAP"
+        },
+        {
+          "port": 443,
+          "status": "open",
+          "service": "HTTPS"
+        },
+        {
+          "port": 445,
+          "status": "filtered",
+          "service": "SMB"
+        },
+        {
+          "port": 993,
+          "status": "filtered",
+          "service": "IMAPS"
+        },
+        {
+          "port": 995,
+          "status": "filtered",
+          "service": "POP3S"
+        },
+        {
+          "port": 3306,
+          "status": "filtered",
+          "service": "MySQL"
+        },
+        {
+          "port": 3389,
+          "status": "filtered",
+          "service": "RDP"
+        },
+        {
+          "port": 5432,
+          "status": "filtered",
+          "service": "PostgreSQL"
+        },
+        {
+          "port": 5900,
+          "status": "filtered",
+          "service": "VNC"
+        },
+        {
+          "port": 6379,
+          "status": "filtered",
+          "service": "Redis"
+        },
+        {
+          "port": 8080,
+          "status": "filtered",
+          "service": "HTTP-Proxy"
+        },
+        {
+          "port": 8443,
+          "status": "filtered",
+          "service": "HTTPS-Alt"
+        },
+        {
+          "port": 27017,
+          "status": "filtered",
+          "service": "MongoDB"
+        }
+      ],
+      "open_count": 2
+    },
+    "fuzzer": {
+      "found": 40,
+      "paths": [
+        "https://myaccount.google.com/intro/dashboard",
+        "https://www.google.com/imghp",
+        "https://www.google.com/robots.txt",
+        "https://www.google.com/sitemap.xml",
+        "https://www.google.com/humans.txt",
+        "https://www.google.com/crossdomain.xml",
+        "https://jobs.google.com/about/",
+        "https://www.google.com/",
+        "https://developers.google.com/apps-script/",
+        "https://safety.google/safety/",
+        "https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Faccounts.google.com%2F&dsh=S-1827834776%3A1776422751055824&followup=https%3A%2F%2Faccounts.google.com%2F&passive=1209600&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AT1y2_W6eFUduUcyT65IWOvAEH3wTkJqwrOBn7S9p-GCzevkqJMIKwNh_P5zKqyu-neK4ff0rRpG",
+        "https://www.google.com/webhp",
+        "https://blog.google/",
+        "https://news.google.com/home?hl=en-US&gl=US&ceid=US:en",
+        "https://about.google/company-info/contact-google/",
+        "https://support.google.com/",
+        "https://about.google/",
+        "https://safety.google/",
+        "https://home.google.com/welcome/",
+        "https://www.google.com/maps"
+      ]
+    },
+    "headers": {
+      "score": 40,
+      "missing": [
+        "Content-Security-Policy",
+        "X-Content-Type-Options",
+        "Referrer-Policy",
+        "Cross-Origin-Embedder-Policy",
+        "Cross-Origin-Resource-Policy"
+      ]
+    },
+    "sqli": {
+      "vulnerable": false,
+      "payload": ""
+    },
+    "xss": {
+      "vulnerable": false,
+      "payload": ""
+    },
+    "subdomain": {
+      "found": 75,
+      "subdomains": [
+        "SubdomainResult(subdomain='www.google.com', record_type='A', value='142.251.150.119, 142.251.157.119, 142.251.151.119, 142.251.155.119, 142.251.156.119, 142.251.153.119, 142.251.154.119, 142.251.152.119', verified=True)",
+        "SubdomainResult(subdomain='smtp.google.com', record_type='A', value='74.125.203.26, 74.125.204.27, 74.125.204.26, 64.233.187.27, 64.233.187.26', verified=True)",
+        "SubdomainResult(subdomain='ns1.google.com', record_type='A', value='216.239.32.10', verified=True)",
+        "SubdomainResult(subdomain='mail.google.com', record_type='A', value='142.250.204.37', verified=True)",
+        "SubdomainResult(subdomain='web.google.com', record_type='A', value='142.250.204.46', verified=True)",
+        "SubdomainResult(subdomain='ns.google.com', record_type='A', value='216.239.32.10', verified=True)",
+        "SubdomainResult(subdomain='images.google.com', record_type='A', value='142.250.198.78', verified=True)",
+        "SubdomainResult(subdomain='ns2.google.com', record_type='A', value='216.239.34.10', verified=True)",
+        "SubdomainResult(subdomain='ns1.google.com', record_type='A', value='216.239.32.10', verified=True)",
+        "SubdomainResult(subdomain='cloud.google.com', record_type='A', value='142.250.66.78', verified=True)",
+        "SubdomainResult(subdomain='api.google.com', record_type='A', value='142.250.196.196', verified=True)",
+        "SubdomainResult(subdomain='shop.google.com', record_type='A', value='108.177.125.92', verified=True)",
+        "SubdomainResult(subdomain='blog.google.com', record_type='A', value='142.250.77.9', verified=True)",
+        "SubdomainResult(subdomain='docs.google.com', record_type='A', value='142.250.204.46', verified=True)",
+        "SubdomainResult(subdomain='support.google.com', record_type='A', value='142.250.204.46', verified=True)",
+        "SubdomainResult(subdomain='video.google.com', record_type='A', value='142.250.196.206', verified=True)",
+        "SubdomainResult(subdomain='videos.google.com', record_type='A', value='142.250.196.206', verified=True)",
+        "SubdomainResult(subdomain='m.google.com', record_type='A', value='142.250.77.11', verified=True)",
+        "SubdomainResult(subdomain='download.google.com', record_type='A', value='142.250.196.196', verified=True)",
+        "SubdomainResult(subdomain='Downloads.google.com', record_type='A', value='142.250.196.196', verified=True)"
+      ]
+    }
+  }
+}

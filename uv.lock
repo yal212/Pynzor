@@ -536,7 +536,7 @@ wheels = [
 
 [[package]]
 name = "pynzor"
-version = "1.0.0"
+version = "1.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
