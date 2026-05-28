@@ -17,6 +17,20 @@ from cli.options import (
     config_file,
     no_baseline,
     include_wildcard,
+    extensions as extensions_opt,
+    recursive as recursive_opt,
+    depth as depth_opt,
+    method as method_opt,
+    header as header_opt,
+    data as data_opt,
+    match_codes as match_codes_opt,
+    filter_codes as filter_codes_opt,
+    filter_size as filter_size_opt,
+    filter_words as filter_words_opt,
+    filter_lines as filter_lines_opt,
+    ports as ports_opt,
+    service_detection as service_detection_opt,
+    output_normal as output_normal_opt,
 )
 from utils.http_client import HTTPClient, ClientConfig
 from utils.validators import normalize_url, extract_domain
@@ -29,6 +43,28 @@ app = typer.Typer(help="Pynzor - Web pentesting CLI")
 reporter = Reporter()
 formatter = Formatter()
 console = Console()
+
+
+def _parse_int_list(value: str | None) -> list[int] | None:
+    if not value:
+        return None
+    return [int(p.strip()) for p in value.split(",") if p.strip()]
+
+
+def _parse_str_list(value: str | None) -> list[str] | None:
+    if not value:
+        return None
+    return [p.strip() for p in value.split(",") if p.strip()]
+
+
+def _parse_headers(values: list[str] | None) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for raw in values or []:
+        if ":" not in raw:
+            raise typer.BadParameter(f"Invalid header (expected 'Name: value'): {raw}")
+        name, _, val = raw.partition(":")
+        headers[name.strip()] = val.strip()
+    return headers
 
 
 @contextmanager
@@ -190,23 +226,62 @@ def fuzz(
     no_color: bool = no_color,
     config_file: Path = config_file,
     no_baseline: bool = no_baseline,
+    extensions: str = extensions_opt,
+    recursive: bool = recursive_opt,
+    depth: int = depth_opt,
+    method: str = method_opt,
+    header: list[str] = header_opt,
+    data: str = data_opt,
+    match_codes: str = match_codes_opt,
+    filter_codes: str = filter_codes_opt,
+    filter_size: int = filter_size_opt,
+    filter_words: int = filter_words_opt,
+    filter_lines: int = filter_lines_opt,
 ):
-    """Directory/file fuzzing"""
+    """Directory/file fuzzing (gobuster-style) or FUZZ-keyword request fuzzing (ffuf-style)"""
     config = load_config(config_file)
     formatter.no_color = no_color
 
-    normalized = normalize_url(target)
+    # FUZZ-mode keeps the raw target (the keyword may live in the path/query);
+    # directory-mode normalizes to a clean base URL.
+    headers = _parse_headers(header)
+    is_request_mode = (
+        "FUZZ" in target
+        or "FUZZ" in " ".join(headers.values())
+        or (data is not None and "FUZZ" in data)
+        or method.upper() != "GET"
+        or data is not None
+    )
+    normalized = target if is_request_mode else normalize_url(target)
     wordlist_path = str(wordlist) if wordlist else config["fuzzer"]["wordlist"]
 
-    typer.echo(f"Fuzzing directories on {normalized}")
+    ext_list = _parse_str_list(extensions)
+    if ext_list is None and not is_request_mode:
+        ext_list = config["fuzzer"].get("extensions")
+
+    if is_request_mode:
+        typer.echo(f"Fuzzing requests on {normalized}")
+    else:
+        typer.echo(f"Fuzzing directories on {normalized}")
 
     async def run_fuzz():
-        with spinner("Fuzzing directories", not no_color):
+        with spinner("Fuzzing", not no_color):
             result = await modules.fuzz(
                 normalized,
                 wordlist_path,
                 threads,
                 use_baseline=not no_baseline,
+                extensions=ext_list,
+                recursive=recursive,
+                depth=depth,
+                method=method,
+                headers=headers or None,
+                data=data,
+                match_codes=_parse_int_list(match_codes),
+                filter_codes=_parse_int_list(filter_codes),
+                filter_size=filter_size,
+                filter_words=filter_words,
+                filter_lines=filter_lines,
             )
         formatter.print_fuzzer_results(result)
         return result
@@ -217,7 +292,86 @@ def fuzz(
     output_path.mkdir(exist_ok=True, parents=True)
     report_file = output_path / f"fuzz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
-        {"target": normalized, "found": [r.url for r in result.found]}, report_file
+        {
+            "target": normalized,
+            "mode": result.mode,
+            "found": [
+                {
+                    "url": r.url,
+                    "status": r.status_code,
+                    "length": r.content_length,
+                    "word": r.word,
+                }
+                for r in result.found
+            ],
+        },
+        report_file,
+    )
+    typer.echo(f"\nReport saved to: {report_file}")
+
+
+@app.command()
+def ports(
+    target: str = target,
+    ports: str = ports_opt,
+    service_detection: bool = service_detection_opt,
+    output_normal: Path = output_normal_opt,
+    output_dir: str = output_dir,
+    threads: int = threads,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
+):
+    """Port scan with optional service/version detection (nmap-style)"""
+    from modules.scanner import parse_ports, format_nmap_text
+
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    host = extract_domain(normalize_url(target))
+    scanner_cfg = config.get("scanner", {})
+    port_list = parse_ports(ports) if ports else scanner_cfg.get("common_ports")
+
+    typer.echo(f"Scanning ports on {host}")
+
+    async def run_ports():
+        with spinner("Scanning ports", not no_color):
+            result = await modules.scan(
+                host,
+                ports=port_list,
+                timeout=scanner_cfg.get("timeout", 3),
+                concurrent=threads if threads else scanner_cfg.get("concurrent", 50),
+                service_detection=service_detection,
+                banner_timeout=scanner_cfg.get("banner_timeout", 2),
+            )
+        formatter.print_scanner_results(result)
+        return result
+
+    result = asyncio.run(run_ports())
+
+    if output_normal:
+        output_normal.parent.mkdir(exist_ok=True, parents=True)
+        output_normal.write_text(format_nmap_text(result))
+        typer.echo(f"Plain-text report saved to: {output_normal}")
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = output_path / f"ports_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    reporter.save(
+        {
+            "target": host,
+            "ports": [
+                {
+                    "port": p.port,
+                    "status": p.status,
+                    "service": p.service,
+                    "product": p.product,
+                    "version": p.version,
+                    "banner": p.banner,
+                }
+                for p in result.ports
+            ],
+        },
+        report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
 

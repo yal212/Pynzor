@@ -8,6 +8,12 @@ from pathlib import Path
 from utils.http_client import HTTPClient, ClientConfig, Response
 
 
+FUZZ_KEYWORD = "FUZZ"
+
+# ffuf's default matcher set.
+DEFAULT_MATCH_CODES = [200, 204, 301, 302, 307, 401, 403, 405, 500]
+
+
 @dataclass
 class FuzzResult:
     url: str
@@ -15,6 +21,9 @@ class FuzzResult:
     discovered: bool
     content_length: int
     redirect: Optional[str]
+    word: Optional[str] = None
+    words: int = 0
+    lines: int = 0
 
 
 @dataclass
@@ -52,6 +61,7 @@ class FuzzScanResult:
     baseline_status: Optional[int] = None
     baseline_note: Optional[str] = None
     baseline_filtered: int = 0
+    mode: str = "directory"
 
 
 def _hash_body(body: str) -> str:
@@ -105,61 +115,116 @@ async def _probe_baseline(
     return None
 
 
+def _normalize_extensions(extensions: Optional[list[str]]) -> list[str]:
+    """Turn user-supplied extensions (``php``, ``.php``) into dotted form."""
+    norm = []
+    for ext in extensions or []:
+        ext = ext.strip()
+        if not ext:
+            continue
+        if not ext.startswith("."):
+            ext = "." + ext
+        if ext not in norm:
+            norm.append(ext)
+    return norm
+
+
+def expand_candidates(
+    wordlist: list[str], extensions: Optional[list[str]]
+) -> list[str]:
+    """Expand each word into the bare word plus ``word+ext`` for each extension
+    (gobuster ``-x`` behavior). The bare word is always probed."""
+    exts = _normalize_extensions(extensions)
+    candidates: list[str] = []
+    for word in wordlist:
+        candidates.append(word)
+        for ext in exts:
+            if not word.endswith(ext):
+                candidates.append(word + ext)
+    return candidates
+
+
+def _is_directory_hit(result: FuzzResult) -> bool:
+    """A hit worth recursing into: a success/redirect/forbidden status on a path
+    whose last segment has no file extension."""
+    if result.status_code not in (200, 301, 302, 403):
+        return False
+    last = result.url.rstrip("/").rsplit("/", 1)[-1]
+    return "." not in last
+
+
 async def fuzz_directory(
     target: str,
     wordlist: list[str],
     threads: int = 20,
     status_codes: Optional[list[int]] = None,
     use_baseline: bool = True,
+    extensions: Optional[list[str]] = None,
+    recursive: bool = False,
+    depth: int = 1,
+    max_candidates: int = 20000,
 ) -> FuzzScanResult:
     if status_codes is None:
         status_codes = [200, 201, 204, 301, 302, 307, 401, 403]
+
+    candidates = expand_candidates(wordlist, extensions)
 
     start_time = datetime.now()
     result = FuzzScanResult(target=target, start_time=start_time, end_time=start_time)
 
     config = ClientConfig(rate_limit=0.1)
     client = HTTPClient(config)
-
     semaphore = asyncio.Semaphore(threads)
-    found = []
-    errors = 0
-    scanned = 0
-    baseline_filtered = 0
-    baseline: Optional[BaselineSignature] = None
 
-    async def fuzz_path(path: str) -> Optional[FuzzResult]:
-        nonlocal errors, scanned, baseline_filtered
-        url = target.rstrip("/") + "/" + path.lstrip("/")
+    totals = {"scanned": 0, "errors": 0, "baseline_filtered": 0}
+    found: list[FuzzResult] = []
 
-        async with semaphore:
-            response = await client.get(url)
+    async def fuzz_base(base: str) -> tuple[list[FuzzResult], Optional[BaselineSignature]]:
+        baseline = await _probe_baseline(client, base, semaphore) if use_baseline else None
 
-        scanned += 1
+        async def fuzz_path(path: str) -> Optional[FuzzResult]:
+            url = base.rstrip("/") + "/" + path.lstrip("/")
+            async with semaphore:
+                response = await client.get(url)
+            totals["scanned"] += 1
+            if response.error:
+                totals["errors"] += 1
+                return None
+            if response.status_code not in status_codes:
+                return None
+            if baseline is not None and baseline.matches(response):
+                totals["baseline_filtered"] += 1
+                return None
+            return FuzzResult(
+                url=response.url,
+                status_code=response.status_code,
+                discovered=True,
+                content_length=len(response.body or ""),
+                redirect=response.headers.get("Location"),
+            )
 
-        if response.error:
-            errors += 1
-            return None
-
-        if response.status_code not in status_codes:
-            return None
-
-        if baseline is not None and baseline.matches(response):
-            baseline_filtered += 1
-            return None
-
-        return FuzzResult(
-            url=response.url,
-            status_code=response.status_code,
-            discovered=True,
-            content_length=len(response.body or ""),
-            redirect=response.headers.get("Location"),
+        results = await asyncio.gather(
+            *(fuzz_path(p) for p in candidates), return_exceptions=True
         )
+        base_found = []
+        for r in results:
+            if isinstance(r, FuzzResult):
+                base_found.append(r)
+            elif isinstance(r, Exception):
+                totals["errors"] += 1
+        return base_found, baseline
 
     async with client:
-        if use_baseline:
-            baseline = await _probe_baseline(client, target, semaphore)
-            if baseline is not None:
+        # BFS over discovered directories up to `depth` (only when recursive).
+        queue: list[tuple[str, int]] = [(target, 0)]
+        seen_bases = {target.rstrip("/")}
+        top_level = True
+        while queue:
+            base, level = queue.pop(0)
+            if totals["scanned"] >= max_candidates:
+                break
+            base_found, baseline = await fuzz_base(base)
+            if top_level and baseline is not None:
                 result.baseline_detected = True
                 result.baseline_status = baseline.status_code
                 result.baseline_note = (
@@ -167,20 +232,117 @@ async def fuzz_directory(
                     f"returned {baseline.status_code}, {baseline.content_length} bytes). "
                     "Filtering matches."
                 )
-
-        tasks = [fuzz_path(path) for path in wordlist]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for r in results:
-            if isinstance(r, FuzzResult) and r:
-                found.append(r)
-            elif isinstance(r, Exception):
-                errors += 1
+            top_level = False
+            found.extend(base_found)
+            if recursive and level < depth:
+                for fr in base_found:
+                    child = fr.url.rstrip("/")
+                    if _is_directory_hit(fr) and child not in seen_bases:
+                        seen_bases.add(child)
+                        queue.append((child, level + 1))
 
     result.found = found
-    result.scanned = scanned
-    result.errors = errors
-    result.baseline_filtered = baseline_filtered
+    result.scanned = totals["scanned"]
+    result.errors = totals["errors"]
+    result.baseline_filtered = totals["baseline_filtered"]
+    result.end_time = datetime.now()
+
+    return result
+
+
+async def fuzz_request(
+    target: str,
+    wordlist: list[str],
+    method: str = "GET",
+    headers: Optional[dict[str, str]] = None,
+    data: Optional[str] = None,
+    threads: int = 20,
+    match_codes: Optional[list[int]] = None,
+    filter_codes: Optional[list[int]] = None,
+    filter_size: Optional[int] = None,
+    filter_words: Optional[int] = None,
+    filter_lines: Optional[int] = None,
+) -> FuzzScanResult:
+    """ffuf-style fuzzing: substitute the ``FUZZ`` keyword into the URL, header
+    values, and/or raw body, then match/filter responses."""
+    method = method.upper()
+    headers = headers or {}
+    if match_codes is None:
+        match_codes = list(DEFAULT_MATCH_CODES)
+
+    start_time = datetime.now()
+    result = FuzzScanResult(
+        target=target, start_time=start_time, end_time=start_time, mode="request"
+    )
+
+    config = ClientConfig(rate_limit=0.1)
+    client = HTTPClient(config)
+    semaphore = asyncio.Semaphore(threads)
+
+    totals = {"scanned": 0, "errors": 0}
+
+    def _passes_filters(status: int, size: int, words: int, lines: int) -> bool:
+        if status not in match_codes:
+            return False
+        if filter_codes and status in filter_codes:
+            return False
+        if filter_size is not None and size == filter_size:
+            return False
+        if filter_words is not None and words == filter_words:
+            return False
+        if filter_lines is not None and lines == filter_lines:
+            return False
+        return True
+
+    async def fuzz_word(word: str) -> Optional[FuzzResult]:
+        url = target.replace(FUZZ_KEYWORD, word)
+        req_headers = {k: v.replace(FUZZ_KEYWORD, word) for k, v in headers.items()}
+        body = data.replace(FUZZ_KEYWORD, word) if data is not None else None
+
+        async with semaphore:
+            response = await client.request(
+                method, url, headers=req_headers or None, content=body
+            )
+        totals["scanned"] += 1
+
+        if response.error:
+            totals["errors"] += 1
+            return None
+
+        text = response.body or ""
+        size = len(text)
+        words = len(text.split())
+        lines = text.count("\n") + 1 if text else 0
+
+        if not _passes_filters(response.status_code, size, words, lines):
+            return None
+
+        return FuzzResult(
+            url=response.url,
+            status_code=response.status_code,
+            discovered=True,
+            content_length=size,
+            redirect=response.headers.get("Location"),
+            word=word,
+            words=words,
+            lines=lines,
+        )
+
+    async with client:
+        results = await asyncio.gather(
+            *(fuzz_word(w) for w in wordlist), return_exceptions=True
+        )
+
+    found = []
+    for r in results:
+        if isinstance(r, FuzzResult):
+            found.append(r)
+        elif isinstance(r, Exception):
+            totals["errors"] += 1
+
+    result.found = found
+    result.scanned = totals["scanned"]
+    result.errors = totals["errors"]
     result.end_time = datetime.now()
 
     return result

@@ -87,12 +87,29 @@ class HTTPClient:
     ) -> Response:
         return await self._request("POST", url, data=data, json=json)
 
+    async def request(
+        self,
+        method: str,
+        url: str,
+        headers: Optional[dict] = None,
+        data: Optional[dict] = None,
+        json: Optional[dict] = None,
+        content: Optional[str] = None,
+    ) -> Response:
+        """Send a request with an arbitrary method, per-request headers, and an
+        optional raw body (``content``, the ``--data-binary`` equivalent)."""
+        return await self._request(
+            method, url, data=data, json=json, headers=headers, content=content
+        )
+
     async def _request(
         self,
         method: str,
         url: str,
         data: Optional[dict] = None,
         json: Optional[dict] = None,
+        headers: Optional[dict] = None,
+        content: Optional[str] = None,
     ) -> Response:
         if not self._client:
             raise RuntimeError("HTTPClient must be used as context manager")
@@ -107,6 +124,8 @@ class HTTPClient:
                     url,
                     data=data,
                     json=json,
+                    headers=headers,
+                    content=content,
                 )
                 latency = (datetime.now() - start).total_seconds()
 

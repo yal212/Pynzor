@@ -14,8 +14,17 @@ async def scan(
     ports: list[int] | None = None,
     timeout: float = 3.0,
     concurrent: int = 50,
+    service_detection: bool = False,
+    banner_timeout: float = 2.0,
 ):
-    return await _scanner.scan(target, ports, timeout, concurrent)
+    return await _scanner.scan(
+        target,
+        ports,
+        timeout,
+        concurrent,
+        service_detection=service_detection,
+        banner_timeout=banner_timeout,
+    )
 
 
 async def fuzz(
@@ -23,10 +32,54 @@ async def fuzz(
     wordlist_path: str,
     threads: int = 20,
     use_baseline: bool = True,
+    extensions: list[str] | None = None,
+    recursive: bool = False,
+    depth: int = 1,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    data: str | None = None,
+    match_codes: list[int] | None = None,
+    filter_codes: list[int] | None = None,
+    filter_size: int | None = None,
+    filter_words: int | None = None,
+    filter_lines: int | None = None,
 ):
     wordlist = _fuzzer.load_wordlist(wordlist_path)
+
+    # ffuf-style request fuzzing kicks in when a FUZZ keyword appears anywhere,
+    # a non-GET method is requested, or a request body is supplied.
+    header_values = " ".join((headers or {}).values())
+    request_mode = (
+        _fuzzer.FUZZ_KEYWORD in target
+        or _fuzzer.FUZZ_KEYWORD in header_values
+        or (data is not None and _fuzzer.FUZZ_KEYWORD in data)
+        or method.upper() != "GET"
+        or data is not None
+    )
+
+    if request_mode:
+        return await _fuzzer.fuzz_request(
+            target,
+            wordlist,
+            method=method,
+            headers=headers,
+            data=data,
+            threads=threads,
+            match_codes=match_codes,
+            filter_codes=filter_codes,
+            filter_size=filter_size,
+            filter_words=filter_words,
+            filter_lines=filter_lines,
+        )
+
     return await _fuzzer.fuzz_directory(
-        target, wordlist, threads, use_baseline=use_baseline
+        target,
+        wordlist,
+        threads,
+        use_baseline=use_baseline,
+        extensions=extensions,
+        recursive=recursive,
+        depth=depth,
     )
 
 

@@ -29,12 +29,19 @@ class Formatter:
         console.print(f"[blue]{escape(message)}[/blue]")
 
     def print_scanner_results(self, result) -> None:
+        show_version = any(
+            getattr(p, "product", None) or getattr(p, "version", None)
+            for p in result.ports
+        )
+
         table = Table(
             title="Port Scan Results", show_header=True, header_style="bold magenta"
         )
         table.add_column("Port", style="cyan", justify="right")
         table.add_column("Status", justify="center")
         table.add_column("Service", style="blue")
+        if show_version:
+            table.add_column("Version", style="green")
         table.add_column("Latency", justify="right")
 
         for port in result.ports:
@@ -46,18 +53,54 @@ class Formatter:
                 if status == "closed"
                 else "yellow"
             )
-            table.add_row(
+            row = [
                 str(port.port),
                 f"[{status_style}]{status}[/{status_style}]",
                 port.service or "",
-                f"{port.latency:.3f}s",
-            )
+            ]
+            if show_version:
+                version = " ".join(
+                    x for x in (getattr(port, "product", None), getattr(port, "version", None)) if x
+                )
+                row.append(version)
+            row.append(f"{port.latency:.3f}s")
+            table.add_row(*row)
         console.print(table)
 
     def print_fuzzer_results(self, result) -> None:
+        request_mode = getattr(result, "mode", "directory") == "request"
+
         if getattr(result, "baseline_detected", False):
             note = getattr(result, "baseline_note", None) or "Catch-all baseline detected"
             console.print(f"[yellow]![/yellow] {note}")
+
+        def status_style(code: int) -> str:
+            return "green" if code < 300 else "yellow" if code < 400 else "red"
+
+        if request_mode:
+            table = Table(
+                title="Request Fuzz Results",
+                show_header=True,
+                header_style="bold magenta",
+            )
+            table.add_column("Word", style="cyan")
+            table.add_column("Status", justify="center")
+            table.add_column("Size", justify="right", style="dim")
+            table.add_column("Words", justify="right", style="dim")
+            table.add_column("Lines", justify="right", style="dim")
+
+            for f in result.found:
+                style = status_style(f.status_code)
+                table.add_row(
+                    f.word or "",
+                    f"[{style}]{f.status_code}[/{style}]",
+                    str(f.content_length),
+                    str(f.words),
+                    str(f.lines),
+                )
+            console.print(table)
+            console.print(f"Found {len(result.found)} matching responses")
+            return
 
         table = Table(
             title="Directory Fuzz Results",
@@ -69,16 +112,10 @@ class Formatter:
         table.add_column("Size", justify="right", style="dim")
 
         for f in result.found:
-            status_style = (
-                "green"
-                if f.status_code < 300
-                else "yellow"
-                if f.status_code < 400
-                else "red"
-            )
+            style = status_style(f.status_code)
             table.add_row(
                 f.url,
-                f"[{status_style}]{f.status_code}[/{status_style}]",
+                f"[{style}]{f.status_code}[/{style}]",
                 str(f.content_length),
             )
 

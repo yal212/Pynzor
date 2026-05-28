@@ -33,6 +33,7 @@ Scan ports · Fuzz directories · Hunt headers · Probe for SQLi & XSS · Enumer
 ## Features
 
 - **One command, full scan** — run every module against a target in a single invocation
+- **Power-tool parity** — gobuster-style extensions/recursion, ffuf-style `FUZZ`-keyword request fuzzing with match/filter, nmap-style service/version detection
 - **Modular architecture** — each technique is an isolated Python module, easy to extend
 - **Rich terminal output** — color-coded severity levels, live spinners, clean layout
 - **JSON & HTML reports** — export results for sharing or archiving
@@ -133,6 +134,10 @@ HTML report saved to: reports/scan_20260421_141203.html
 
 ```bash
 Pynzor fuzz -t https://example.com --wordlist ./mylist.txt --threads 30
+
+# gobuster-style: append file extensions to every word, and recurse into hits
+Pynzor fuzz -t https://example.com -w ./mylist.txt -x php,html,txt
+Pynzor fuzz -t https://example.com -w ./mylist.txt -x php --recursive --depth 2
 ```
 
 <details>
@@ -151,7 +156,65 @@ Filtered 128 paths matching catch-all baseline (use --no-baseline to disable)
 
 Baseline filtering protects against SPAs and reverse proxies that return
 `200 OK` + the same body for every path. Use `--no-baseline` to see raw
-results.
+results. `-x/--extensions` expands each word into `word`, `word.php`, … (the
+config `fuzzer.extensions` list is the default); `-r/--recursive` re-fuzzes
+discovered directories up to `--depth`.
+</details>
+
+### Request fuzzing (ffuf-style)
+
+Put the `FUZZ` keyword anywhere in the URL, a header value, or the request
+body — Pynzor substitutes each wordlist entry and matches/filters the
+responses. A non-GET method or a `-d` body switches `fuzz` into this mode
+automatically.
+
+```bash
+# Brute a login form: FUZZ the password field, keep only non-401 responses
+Pynzor fuzz -t https://target/admin/login -X POST \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'password=FUZZ' -w ~/wordlists/rockyou.txt -fc 401
+
+# FUZZ in the path; keep 200s only
+Pynzor fuzz -t https://target/FUZZ -w ./mylist.txt -mc 200
+```
+
+<details>
+<summary>Sample output</summary>
+
+```
+Fuzzing requests on https://target/admin/login
+ Word        Status   Size   Words   Lines
+ hunter2      200      512     48      21
+Found 1 matching responses
+```
+
+Matchers/filters: `-mc` keep status codes, `-fc` drop status codes, `-fs`
+drop by exact byte size, `-fw` by word count, `-fl` by line count. Filters
+win over matchers, mirroring ffuf.
+</details>
+
+### Port scan & service detection (nmap-style)
+
+```bash
+# Connect-scan a port range, grab banners, detect versions, write a text report
+Pynzor ports -t scanme.nmap.org -p 1-1000 -sV -oN scan.txt
+Pynzor ports -t 172.67.144.163 -p 22,80,443,8080
+```
+
+<details>
+<summary>Sample output</summary>
+
+```
+Scanning ports on scanme.nmap.org
+ Port   Status   Service   Version           Latency
+ 22     open     SSH       OpenSSH 6.6.1p1   0.232s
+ 80     open     HTTP      Apache 2.4.7      0.220s
+ 443    closed   HTTPS                       0.243s
+Plain-text report saved to: scan.txt
+```
+
+`-sV` grabs the connect banner (or the HTTP `Server` header) on open ports and
+parses common products/versions. `-oN` writes an nmap-style plain-text report.
 </details>
 
 ### Security header analysis
@@ -225,7 +288,8 @@ Pynzor xss -t https://example.com -v
 | Command | Description |
 |---------|-------------|
 | `scan` | Full scan — run all modules |
-| `fuzz` | Directory & file fuzzing |
+| `ports` | Port scan with optional service/version detection (`-sV`, `-oN`) |
+| `fuzz` | Directory/file fuzzing (`-x`, `-r`) or `FUZZ`-keyword request fuzzing (`-X`, `-d`, `-mc`/`-fc`/`-fs`) |
 | `headers` | Security header analysis |
 | `sqli` | SQL injection probe |
 | `xss` | Reflected XSS detection |

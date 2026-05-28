@@ -11,11 +11,15 @@ scanner:
   common_ports: [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 993, 995, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 27017]
   timeout: 3
   concurrent: 50
+  service_detection: false
+  banner_timeout: 2
 
 fuzzer:
   threads: 20
   status_codes: [200, 201, 204, 301, 302, 307, 401, 403]
+  match_codes: [200, 204, 301, 302, 307, 401, 403, 405, 500]
   extensions: ["", ".php", ".html", ".htm", ".asp", ".aspx", ".jsp", ".txt"]
+  recursion_depth: 2
   wordlist: "wordlists/common-dirs.txt"
 
 sqli:
