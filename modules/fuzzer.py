@@ -14,6 +14,24 @@ FUZZ_KEYWORD = "FUZZ"
 DEFAULT_MATCH_CODES = [200, 204, 301, 302, 307, 401, 403, 405, 500]
 
 
+def is_request_mode(
+    target: str,
+    headers: Optional[dict[str, str]] = None,
+    data: Optional[str] = None,
+    method: str = "GET",
+) -> bool:
+    """ffuf-style request fuzzing applies when a FUZZ keyword appears in the
+    target or header values, a non-GET method is used, or a request body is
+    supplied. Otherwise we run gobuster-style directory fuzzing."""
+    header_values = " ".join((headers or {}).values())
+    return (
+        FUZZ_KEYWORD in target
+        or FUZZ_KEYWORD in header_values
+        or method.upper() != "GET"
+        or data is not None
+    )
+
+
 @dataclass
 class FuzzResult:
     url: str

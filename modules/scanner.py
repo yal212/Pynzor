@@ -107,14 +107,20 @@ def parse_ports(spec: str) -> list[int]:
             continue
         if "-" in part:
             lo_s, _, hi_s = part.partition("-")
-            lo, hi = int(lo_s), int(hi_s)
+            try:
+                lo, hi = int(lo_s), int(hi_s)
+            except ValueError:
+                raise ValueError(f"Invalid port range: {part!r} (expected 'lo-hi')")
             if lo > hi:
                 lo, hi = hi, lo
             for p in range(lo, hi + 1):
                 if 1 <= p <= 65535:
                     ports.add(p)
         else:
-            p = int(part)
+            try:
+                p = int(part)
+            except ValueError:
+                raise ValueError(f"Invalid port: {part!r}")
             if 1 <= p <= 65535:
                 ports.add(p)
     return sorted(ports)

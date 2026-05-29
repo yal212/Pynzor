@@ -45,10 +45,15 @@ formatter = Formatter()
 console = Console()
 
 
-def _parse_int_list(value: str | None) -> list[int] | None:
+def _parse_int_list(value: str | None, param: str = "value") -> list[int] | None:
     if not value:
         return None
-    return [int(p.strip()) for p in value.split(",") if p.strip()]
+    try:
+        return [int(p.strip()) for p in value.split(",") if p.strip()]
+    except ValueError:
+        raise typer.BadParameter(
+            f"expected comma-separated integers, got: {value!r}", param_hint=param
+        )
 
 
 def _parse_str_list(value: str | None) -> list[str] | None:
@@ -228,7 +233,7 @@ def fuzz(
     no_baseline: bool = no_baseline,
     extensions: str = extensions_opt,
     recursive: bool = recursive_opt,
-    depth: int = depth_opt,
+    depth: int | None = depth_opt,
     method: str = method_opt,
     header: list[str] = header_opt,
     data: str = data_opt,
@@ -241,25 +246,56 @@ def fuzz(
     """Directory/file fuzzing (gobuster-style) or FUZZ-keyword request fuzzing (ffuf-style)"""
     config = load_config(config_file)
     formatter.no_color = no_color
+    fuzzer_cfg = config.get("fuzzer", {})
 
-    # FUZZ-mode keeps the raw target (the keyword may live in the path/query);
-    # directory-mode normalizes to a clean base URL.
     headers = _parse_headers(header)
-    is_request_mode = (
-        "FUZZ" in target
-        or "FUZZ" in " ".join(headers.values())
-        or (data is not None and "FUZZ" in data)
-        or method.upper() != "GET"
-        or data is not None
+    request_mode = modules.is_request_mode(
+        target, headers=headers, data=data, method=method
     )
-    normalized = target if is_request_mode else normalize_url(target)
-    wordlist_path = str(wordlist) if wordlist else config["fuzzer"]["wordlist"]
 
-    ext_list = _parse_str_list(extensions)
-    if ext_list is None and not is_request_mode:
-        ext_list = config["fuzzer"].get("extensions")
+    # FUZZ-mode keeps the keyword-bearing target intact (only ensuring a
+    # scheme so requests resolve); directory-mode normalizes to a clean base URL.
+    if request_mode:
+        normalized = target.strip()
+        if not normalized.startswith(("http://", "https://")):
+            normalized = f"https://{normalized}"
+    else:
+        normalized = normalize_url(target)
+    wordlist_path = str(wordlist) if wordlist else fuzzer_cfg["wordlist"]
 
-    if is_request_mode:
+    # Extensions: -x omitted -> config default (directory mode only);
+    # -x "" -> explicit opt-out (bare words only); -x "php,html" -> those.
+    if extensions is None:
+        ext_list = None if request_mode else fuzzer_cfg.get("extensions")
+    else:
+        ext_list = _parse_str_list(extensions)
+
+    effective_depth = depth if depth is not None else fuzzer_cfg.get("recursion_depth", 1)
+
+    match_list = _parse_int_list(match_codes, "--match-codes")
+    if match_list is None and request_mode:
+        match_list = fuzzer_cfg.get("match_codes")
+    filter_list = _parse_int_list(filter_codes, "--filter-codes")
+
+    if not request_mode:
+        dropped = [
+            name
+            for name, given in (
+                ("--match-codes", bool(match_codes)),
+                ("--filter-codes", bool(filter_codes)),
+                ("--filter-size", filter_size is not None),
+                ("--filter-words", filter_words is not None),
+                ("--filter-lines", filter_lines is not None),
+            )
+            if given
+        ]
+        if dropped:
+            typer.echo(
+                f"Warning: {', '.join(dropped)} only apply to request fuzzing "
+                "(FUZZ keyword / -X / -d); ignored in directory mode."
+            )
+
+    if request_mode:
         typer.echo(f"Fuzzing requests on {normalized}")
     else:
         typer.echo(f"Fuzzing directories on {normalized}")
@@ -273,12 +309,12 @@ def fuzz(
                 use_baseline=not no_baseline,
                 extensions=ext_list,
                 recursive=recursive,
-                depth=depth,
+                depth=effective_depth,
                 method=method,
                 headers=headers or None,
                 data=data,
-                match_codes=_parse_int_list(match_codes),
-                filter_codes=_parse_int_list(filter_codes),
+                match_codes=match_list,
+                filter_codes=filter_list,
                 filter_size=filter_size,
                 filter_words=filter_words,
                 filter_lines=filter_lines,
@@ -329,7 +365,10 @@ def ports(
 
     host = extract_domain(normalize_url(target))
     scanner_cfg = config.get("scanner", {})
-    port_list = parse_ports(ports) if ports else scanner_cfg.get("common_ports")
+    try:
+        port_list = parse_ports(ports) if ports else scanner_cfg.get("common_ports")
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--ports")
 
     typer.echo(f"Scanning ports on {host}")
 

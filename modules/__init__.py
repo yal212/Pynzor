@@ -6,6 +6,7 @@ from . import headers as _headers
 from . import sqli as _sqli
 from . import xss as _xss
 from . import subdomain as _subdomain
+from .fuzzer import is_request_mode
 from utils.http_client import HTTPClient
 
 
@@ -46,18 +47,7 @@ async def fuzz(
 ):
     wordlist = _fuzzer.load_wordlist(wordlist_path)
 
-    # ffuf-style request fuzzing kicks in when a FUZZ keyword appears anywhere,
-    # a non-GET method is requested, or a request body is supplied.
-    header_values = " ".join((headers or {}).values())
-    request_mode = (
-        _fuzzer.FUZZ_KEYWORD in target
-        or _fuzzer.FUZZ_KEYWORD in header_values
-        or (data is not None and _fuzzer.FUZZ_KEYWORD in data)
-        or method.upper() != "GET"
-        or data is not None
-    )
-
-    if request_mode:
+    if is_request_mode(target, headers=headers, data=data, method=method):
         return await _fuzzer.fuzz_request(
             target,
             wordlist,

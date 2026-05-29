@@ -80,9 +80,9 @@ recursive = typer.Option(
 )
 
 depth = typer.Option(
-    1,
+    None,
     "--depth",
-    help="Maximum recursion depth (with --recursive)",
+    help="Maximum recursion depth with --recursive (default: config recursion_depth)",
 )
 
 method = typer.Option(
