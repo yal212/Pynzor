@@ -46,6 +46,18 @@ console = Console()
 
 
 def _parse_int_list(value: str | None, param: str = "value") -> list[int] | None:
+    """Parse a comma-separated string of integers.
+
+    Args:
+        value: Comma-separated integers, or None/empty.
+        param: Parameter name used in error messages.
+
+    Returns:
+        The parsed list, or None if ``value`` is empty.
+
+    Raises:
+        typer.BadParameter: If any element is not an integer.
+    """
     if not value:
         return None
     try:
@@ -57,12 +69,31 @@ def _parse_int_list(value: str | None, param: str = "value") -> list[int] | None
 
 
 def _parse_str_list(value: str | None) -> list[str] | None:
+    """Parse a comma-separated string into a list of trimmed strings.
+
+    Args:
+        value: Comma-separated values, or None/empty.
+
+    Returns:
+        The parsed list, or None if ``value`` is empty.
+    """
     if not value:
         return None
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
 def _parse_headers(values: list[str] | None) -> dict[str, str]:
+    """Parse ``Name: value`` header strings into a dict.
+
+    Args:
+        values: Header strings, each in ``Name: value`` form.
+
+    Returns:
+        A mapping of header name to value.
+
+    Raises:
+        typer.BadParameter: If any entry lacks a colon separator.
+    """
     headers: dict[str, str] = {}
     for raw in values or []:
         if ":" not in raw:
@@ -74,6 +105,16 @@ def _parse_headers(values: list[str] | None) -> dict[str, str]:
 
 @contextmanager
 def spinner(msg: str, use_color: bool = True):
+    """Context manager showing a status spinner (or plain text in no-color mode).
+
+    Args:
+        msg: Status message to display.
+        use_color: If True, show an animated rich spinner; otherwise print
+            ``msg + "..."`` once.
+
+    Yields:
+        Control to the wrapped block while the spinner is active.
+    """
     if use_color:
         with console.status(f"[cyan]{msg}[/cyan]", spinner="dots"):
             yield
@@ -83,6 +124,19 @@ def spinner(msg: str, use_color: bool = True):
 
 
 def load_config(config_path: Path | None = None):
+    """Load the YAML config, resolving relative wordlist paths.
+
+    Relative ``wordlist`` paths (under ``fuzzer``/``subdomain`` and the
+    ``wordlists`` map) are resolved against the config file's directory so the
+    CLI works when run as a bundled executable.
+
+    Args:
+        config_path: Path to a config file; defaults to the bundled
+            ``config.yaml`` beside this module.
+
+    Returns:
+        The parsed configuration dict.
+    """
     import yaml
 
     default_config = Path(__file__).parent / "config.yaml"
@@ -130,6 +184,7 @@ def scan(
     }
 
     async def run_all():
+        """Run every module in sequence and collect their results."""
         http_config = ClientConfig(
             timeout=config["http"].get("timeout", 10),
             max_retries=config["http"].get("max_retries", 3),
@@ -301,6 +356,7 @@ def fuzz(
         typer.echo(f"Fuzzing directories on {normalized}")
 
     async def run_fuzz():
+        """Run the fuzzer with the resolved options and print results."""
         with spinner("Fuzzing", not no_color):
             result = await modules.fuzz(
                 normalized,
@@ -373,6 +429,7 @@ def ports(
     typer.echo(f"Scanning ports on {host}")
 
     async def run_ports():
+        """Run the port scan with the resolved options and print results."""
         with spinner("Scanning ports", not no_color):
             result = await modules.scan(
                 host,
@@ -432,6 +489,7 @@ def headers_cmd(
     typer.echo(f"Analyzing headers on {normalized}")
 
     async def run_headers():
+        """Run header analysis and print results."""
         with spinner("Analyzing headers", not no_color):
             result = await modules.analyze(normalized, None)
         formatter.print_headers_results(result)
@@ -467,6 +525,7 @@ def sqli(
     typer.echo(f"Probing for SQL injection on {normalized}")
 
     async def run_sqli():
+        """Run the SQL injection probe and print results."""
         with spinner("Probing for SQL injection", not no_color):
             result = await modules.probe(normalized)
         formatter.print_sqli_results(result)
@@ -504,6 +563,7 @@ def xss(
     typer.echo(f"Detecting XSS on {normalized}")
 
     async def run_xss():
+        """Run XSS detection and print results."""
         with spinner("Detecting XSS", not no_color):
             result = await modules.detect(normalized)
         formatter.print_xss_results(result)
@@ -543,6 +603,7 @@ def subdomain(
     typer.echo(f"Enumerating subdomains of {domain}")
 
     async def run_subdomain():
+        """Run subdomain enumeration and print results."""
         with spinner("Enumerating subdomains", not no_color):
             result = await modules.enumerate(
                 domain,

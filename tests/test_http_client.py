@@ -6,6 +6,7 @@ from utils.http_client import HTTPClient, ClientConfig
 
 @pytest.mark.asyncio
 async def test_request_sends_custom_method_headers_and_raw_body():
+    """request() forwards the HTTP method, custom headers, and raw body content."""
     captured = {}
 
     def responder(request):
@@ -33,6 +34,7 @@ async def test_request_sends_custom_method_headers_and_raw_body():
 
 @pytest.mark.asyncio
 async def test_request_defaults_to_get_with_no_body():
+    """request() issues a plain GET when given no body."""
     with respx.mock:
         route = respx.get("http://example.com/").mock(
             return_value=httpx.Response(200, text="hi")

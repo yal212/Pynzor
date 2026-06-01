@@ -35,6 +35,8 @@ TLS_PORTS = {443, 8443}
 
 @dataclass
 class PortResult:
+    """Result of probing a single port: state, service, and optional banner info."""
+
     port: int
     status: str
     service: Optional[str]
@@ -46,6 +48,8 @@ class PortResult:
 
 @dataclass
 class ScanResult:
+    """Aggregated results of a port scan against a single target."""
+
     target: str
     start_time: datetime
     end_time: datetime
@@ -54,6 +58,17 @@ class ScanResult:
 
 
 async def scan_port(host: str, port: int, timeout: float = 3.0) -> PortResult:
+    """Probe a single TCP port by attempting a connection.
+
+    Args:
+        host: Target host or IP.
+        port: Port number to probe.
+        timeout: Connection timeout in seconds.
+
+    Returns:
+        A :class:`PortResult` with status "open", "closed", or "filtered"
+        (the latter on timeout or other OS errors).
+    """
     start = datetime.now()
     service = COMMON_PORTS.get(port, "Unknown")
 
@@ -202,6 +217,19 @@ async def scan(
     service_detection: bool = False,
     banner_timeout: float = 2.0,
 ) -> ScanResult:
+    """Scan a target across many ports concurrently.
+
+    Args:
+        target: Host or IP to scan.
+        ports: Ports to scan; defaults to the common-ports list.
+        timeout: Per-port connection timeout in seconds.
+        concurrent: Maximum number of simultaneous port probes.
+        service_detection: If True, grab and parse a banner on open ports.
+        banner_timeout: Timeout in seconds for banner grabbing.
+
+    Returns:
+        A :class:`ScanResult` with sorted port results and any errors.
+    """
     if ports is None:
         ports = list(COMMON_PORTS.keys())
 
@@ -211,6 +239,7 @@ async def scan(
     semaphore = asyncio.Semaphore(concurrent)
 
     async def scan_with_semaphore(port: int) -> PortResult:
+        """Scan one port under the concurrency semaphore, with optional banner grab."""
         async with semaphore:
             port_result = await scan_port(target, port, timeout)
             if service_detection and port_result.status == "open":

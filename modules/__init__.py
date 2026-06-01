@@ -18,6 +18,13 @@ async def scan(
     service_detection: bool = False,
     banner_timeout: float = 2.0,
 ):
+    """Public facade for the port scanner.
+
+    Delegates to :func:`modules.scanner.scan`; see it for argument details.
+
+    Returns:
+        The scanner's ``ScanResult``.
+    """
     return await _scanner.scan(
         target,
         ports,
@@ -45,6 +52,15 @@ async def fuzz(
     filter_words: int | None = None,
     filter_lines: int | None = None,
 ):
+    """Public facade for the fuzzer.
+
+    Loads the wordlist, then dispatches to request-mode fuzzing
+    (:func:`modules.fuzzer.fuzz_request`) when a FUZZ keyword/body/method is
+    present, otherwise directory fuzzing (:func:`modules.fuzzer.fuzz_directory`).
+
+    Returns:
+        A ``FuzzScanResult``.
+    """
     wordlist = _fuzzer.load_wordlist(wordlist_path)
 
     if is_request_mode(target, headers=headers, data=data, method=method):
@@ -74,14 +90,35 @@ async def fuzz(
 
 
 async def analyze(target: str, http_client: HTTPClient | None = None):
+    """Public facade for security-header analysis.
+
+    Delegates to :func:`modules.headers.analyze_headers`.
+
+    Returns:
+        A ``HeaderResult``.
+    """
     return await _headers.analyze_headers(target, http_client)
 
 
 async def probe(target: str, http_client: HTTPClient | None = None):
+    """Public facade for SQL injection probing.
+
+    Delegates to :func:`modules.sqli.probe_sqli`.
+
+    Returns:
+        A ``SQLiResult``.
+    """
     return await _sqli.probe_sqli(target)
 
 
 async def detect(target: str, http_client: HTTPClient | None = None):
+    """Public facade for XSS detection.
+
+    Delegates to :func:`modules.xss.detect_xss`.
+
+    Returns:
+        An ``XSSResult``.
+    """
     return await _xss.detect_xss(target)
 
 
@@ -91,6 +128,14 @@ async def enumerate(
     threads: int = 20,
     include_wildcard: bool = False,
 ):
+    """Public facade for subdomain enumeration.
+
+    Loads the wordlist and delegates to
+    :func:`modules.subdomain.enumerate_subdomains`.
+
+    Returns:
+        A ``SubdomainScanResult``.
+    """
     wordlist = _fuzzer.load_wordlist(wordlist_path)
     return await _subdomain.enumerate_subdomains(
         target, wordlist, threads, include_wildcard=include_wildcard

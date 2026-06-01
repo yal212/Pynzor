@@ -13,6 +13,7 @@ from modules.fuzzer import (
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_finds_200_path():
+    """Directory fuzzing reports only the path returning a 200."""
     with respx.mock:
         respx.get("http://example.com/admin").mock(
             return_value=httpx.Response(200, text="Admin panel")
@@ -38,6 +39,7 @@ async def test_fuzz_directory_finds_200_path():
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_empty_wordlist():
+    """An empty wordlist scans nothing and finds nothing."""
     result = await fuzz_directory(
         "http://example.com", [], threads=2, use_baseline=False
     )
@@ -47,6 +49,7 @@ async def test_fuzz_directory_empty_wordlist():
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_filters_spa_catchall():
+    """A SPA catch-all baseline is detected and all matching paths are filtered."""
     # Every path (including random baseline probes) returns 200 + same body.
     spa_body = "<html><body>SPA index</body></html>"
     with respx.mock:
@@ -68,6 +71,7 @@ async def test_fuzz_directory_filters_spa_catchall():
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_no_baseline_flag_disables_filtering():
+    """With use_baseline=False, catch-all responses are not detected or filtered."""
     spa_body = "<html><body>SPA index</body></html>"
     with respx.mock:
         respx.get(url__startswith="http://spa.example.com/").mock(
@@ -87,6 +91,7 @@ async def test_fuzz_directory_no_baseline_flag_disables_filtering():
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_distinguishes_real_match_from_baseline():
+    """A genuine hit is reported even when a catch-all baseline is present."""
     spa_body = "<html><body>SPA index placeholder content</body></html>"
     admin_body = "<html><body>Internal admin dashboard — login required</body></html>"
 
@@ -112,6 +117,7 @@ async def test_fuzz_directory_distinguishes_real_match_from_baseline():
 
 
 def test_load_wordlist(test_wordlist):
+    """load_wordlist returns all entries from a wordlist file."""
     entries = load_wordlist(str(test_wordlist))
     assert "/admin" in entries
     assert "/login" in entries
@@ -119,11 +125,13 @@ def test_load_wordlist(test_wordlist):
 
 
 def test_load_wordlist_missing_file():
+    """load_wordlist raises FileNotFoundError for a nonexistent path."""
     with pytest.raises(FileNotFoundError):
         load_wordlist("/nonexistent/path/wordlist.txt")
 
 
 def test_expand_candidates_adds_extensions():
+    """expand_candidates appends normalized extensions without duplicating existing ones."""
     candidates = expand_candidates(["admin", "index.php"], ["php", ".html"])
     # bare word always present; extensions normalized to dotted form
     assert candidates == [
@@ -136,11 +144,13 @@ def test_expand_candidates_adds_extensions():
 
 
 def test_expand_candidates_no_extensions():
+    """expand_candidates returns the bare words when no extensions are given."""
     assert expand_candidates(["a", "b"], None) == ["a", "b"]
 
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_extensions_expand():
+    """Directory fuzzing tries each extension and reports the matching variant."""
     with respx.mock:
         respx.get("http://example.com/admin").mock(
             return_value=httpx.Response(404, text="nope")
@@ -165,6 +175,7 @@ async def test_fuzz_directory_extensions_expand():
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_recursion_descends_one_level():
+    """Recursive fuzzing descends into a discovered directory one level deep."""
     with respx.mock:
         respx.get("http://example.com/admin").mock(
             return_value=httpx.Response(200, text="dir index")
@@ -194,6 +205,7 @@ async def test_fuzz_directory_recursion_descends_one_level():
 
 @pytest.mark.asyncio
 async def test_fuzz_request_post_body_substitution():
+    """Request fuzzing substitutes FUZZ into a POST body and matches the right word."""
     def responder(request):
         body = request.content.decode()
         return httpx.Response(200, text="welcome") if "password=admin" in body else httpx.Response(401, text="denied")
@@ -218,6 +230,7 @@ async def test_fuzz_request_post_body_substitution():
 
 @pytest.mark.asyncio
 async def test_fuzz_request_filter_codes():
+    """filter_codes excludes responses with the filtered status code."""
     def responder(request):
         body = request.content.decode()
         return httpx.Response(200, text="x") if "v=ok" in body else httpx.Response(403, text="x")
@@ -237,6 +250,7 @@ async def test_fuzz_request_filter_codes():
 
 @pytest.mark.asyncio
 async def test_fuzz_request_filter_size():
+    """filter_size excludes responses whose body length matches the filtered size."""
     def responder(request):
         body = request.content.decode()
         return httpx.Response(200, text="MUCH LONGER BODY") if "id=2" in body else httpx.Response(200, text="small")
@@ -257,6 +271,7 @@ async def test_fuzz_request_filter_size():
 
 @pytest.mark.asyncio
 async def test_fuzz_request_url_keyword_substitution():
+    """Request fuzzing substitutes FUZZ into the URL path and matches the right word."""
     with respx.mock:
         respx.get("http://example.com/admin").mock(
             return_value=httpx.Response(200, text="ok")
@@ -275,6 +290,7 @@ async def test_fuzz_request_url_keyword_substitution():
 
 @pytest.mark.asyncio
 async def test_fuzz_request_does_not_follow_redirects():
+    """Request fuzzing treats a 3xx as terminal so a 301 can match -mc 301."""
     # ffuf treats 3xx as terminal; the client must not resolve a 301 to its
     # 200 target, otherwise -mc 301 could never match.
     with respx.mock:
@@ -295,6 +311,7 @@ async def test_fuzz_request_does_not_follow_redirects():
 
 
 def test_is_request_mode_empty_data_stays_directory():
+    """Empty --data stays in directory mode; non-empty data switches to request mode."""
     # An empty --data must not flip directory fuzzing into request mode.
     assert is_request_mode("http://example.com", data="") is False
     assert is_request_mode("http://example.com", data="x=1") is True
@@ -302,6 +319,7 @@ def test_is_request_mode_empty_data_stays_directory():
 
 @pytest.mark.asyncio
 async def test_fuzz_directory_caps_candidates():
+    """max_candidates bounds the number of requests issued per base URL."""
     # max_candidates must bound per-base fan-out, not just the BFS loop.
     with respx.mock:
         respx.route().mock(return_value=httpx.Response(404, text="no"))

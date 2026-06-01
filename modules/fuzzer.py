@@ -34,6 +34,8 @@ def is_request_mode(
 
 @dataclass
 class FuzzResult:
+    """A single discovered path/word and its response metrics."""
+
     url: str
     status_code: int
     discovered: bool
@@ -46,12 +48,25 @@ class FuzzResult:
 
 @dataclass
 class BaselineSignature:
+    """Fingerprint of a catch-all (SPA/proxy) response used to filter false hits."""
+
     status_code: int
     content_length: int
     body_hash: str
     probe_path: str
 
     def matches(self, response: Response) -> bool:
+        """Check whether a response looks like the recorded catch-all baseline.
+
+        Matches on identical status plus an identical normalized-body hash, or,
+        for larger bodies, a small length drift to tolerate dynamic tokens.
+
+        Args:
+            response: The response to compare against this baseline.
+
+        Returns:
+            True if the response should be treated as a baseline (non-)hit.
+        """
         if response.status_code != self.status_code:
             return False
         body = response.body or ""
@@ -69,6 +84,8 @@ class BaselineSignature:
 
 @dataclass
 class FuzzScanResult:
+    """Aggregated results of a directory or request fuzzing run."""
+
     target: str
     start_time: datetime
     end_time: datetime
@@ -83,6 +100,14 @@ class FuzzScanResult:
 
 
 def _hash_body(body: str) -> str:
+    """Return a SHA-256 hash of a whitespace-normalized response body.
+
+    Args:
+        body: Raw response body text.
+
+    Returns:
+        Hex digest of the normalized body, used for baseline comparison.
+    """
     normalized = " ".join((body or "").split())
     return hashlib.sha256(normalized.encode("utf-8", errors="ignore")).hexdigest()
 
@@ -90,9 +115,24 @@ def _hash_body(body: str) -> str:
 async def _probe_baseline(
     client: HTTPClient, target: str, semaphore: asyncio.Semaphore
 ) -> Optional[BaselineSignature]:
+    """Probe random paths to detect a catch-all (SPA/proxy) response.
+
+    Requests two random UUID paths; if both return the same "success" status
+    with identical (or near-identical, for large bodies) content, the server is
+    treated as a catch-all and a baseline signature is returned.
+
+    Args:
+        client: HTTP client to issue probes with.
+        target: Base URL to probe under.
+        semaphore: Concurrency limiter shared with the fuzz run.
+
+    Returns:
+        A :class:`BaselineSignature` if a catch-all is detected, else None.
+    """
     probe_paths = [f"pynzor-baseline-{uuid.uuid4().hex[:16]}" for _ in range(2)]
 
     async def fetch(path: str) -> Optional[Response]:
+        """Fetch one probe path under the semaphore; None on request error."""
         url = target.rstrip("/") + "/" + path
         async with semaphore:
             resp = await client.get(url)
@@ -182,6 +222,26 @@ async def fuzz_directory(
     depth: int = 1,
     max_candidates: int = 20000,
 ) -> FuzzScanResult:
+    """Run gobuster-style directory fuzzing against a base URL.
+
+    Expands the wordlist with extensions, optionally detects a catch-all
+    baseline to filter false positives, and (when recursive) descends into
+    discovered directories up to ``depth`` via breadth-first search.
+
+    Args:
+        target: Base URL to fuzz.
+        wordlist: Words/paths to try.
+        threads: Maximum concurrent requests.
+        status_codes: Status codes treated as hits; defaults to a common set.
+        use_baseline: Whether to probe for and filter a catch-all baseline.
+        extensions: Extensions to append to each word (gobuster ``-x``).
+        recursive: Whether to recurse into discovered directories.
+        depth: Maximum recursion depth when ``recursive`` is set.
+        max_candidates: Cap on total candidates/requests to bound fan-out.
+
+    Returns:
+        A :class:`FuzzScanResult` with discovered paths and run statistics.
+    """
     if status_codes is None:
         status_codes = [200, 201, 204, 301, 302, 307, 401, 403]
 
@@ -202,9 +262,11 @@ async def fuzz_directory(
     found: list[FuzzResult] = []
 
     async def fuzz_base(base: str) -> tuple[list[FuzzResult], Optional[BaselineSignature]]:
+        """Fuzz every candidate under one base URL, returning hits and its baseline."""
         baseline = await _probe_baseline(client, base, semaphore) if use_baseline else None
 
         async def fuzz_path(path: str) -> Optional[FuzzResult]:
+            """Request a single candidate path; return a hit or None (miss/baseline/error)."""
             url = base.rstrip("/") + "/" + path.lstrip("/")
             async with semaphore:
                 response = await client.get(url)
@@ -306,6 +368,7 @@ async def fuzz_request(
     totals = {"scanned": 0, "errors": 0}
 
     def _passes_filters(status: int, size: int, words: int, lines: int) -> bool:
+        """Return True if a response matches ``match_codes`` and survives all filters."""
         if status not in match_codes:
             return False
         if filter_codes and status in filter_codes:
@@ -319,6 +382,7 @@ async def fuzz_request(
         return True
 
     async def fuzz_word(word: str) -> Optional[FuzzResult]:
+        """Substitute one word into the request and return a hit or None."""
         url = target.replace(FUZZ_KEYWORD, word)
         req_headers = {k: v.replace(FUZZ_KEYWORD, word) for k, v in headers.items()}
         body = data.replace(FUZZ_KEYWORD, word) if data is not None else None
@@ -373,6 +437,18 @@ async def fuzz_request(
 
 
 def load_wordlist(path: str) -> list[str]:
+    """Load a wordlist file, skipping blank lines and ``#`` comments.
+
+    Args:
+        path: Filesystem path to the wordlist.
+
+    Returns:
+        List of stripped, non-comment words.
+
+    Raises:
+        FileNotFoundError: If the path does not exist.
+        ValueError: If the path exists but is not a regular file.
+    """
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Wordlist not found: {path}")

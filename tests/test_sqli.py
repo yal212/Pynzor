@@ -16,6 +16,7 @@ from utils.http_client import HTTPClient, ClientConfig
 
 @pytest.mark.asyncio
 async def test_test_payload_error_signature_detected():
+    """_test_payload flags an error-based SQLi when a SQL error signature appears."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     payload = "' OR '1'='1"
@@ -32,6 +33,7 @@ async def test_test_payload_error_signature_detected():
 
 @pytest.mark.asyncio
 async def test_test_payload_clean_response_returns_none():
+    """_test_payload returns None when the response shows no SQL error signature."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     payload = "' OR '1'='1"
@@ -47,6 +49,7 @@ async def test_test_payload_clean_response_returns_none():
 
 @pytest.mark.asyncio
 async def test_probe_sqli_no_params_returns_empty():
+    """probe_sqli does nothing when the target has no params and no forms."""
     with respx.mock:
         respx.get("http://example.com/search").mock(
             return_value=httpx.Response(200, text="<html><body>nothing</body></html>")
@@ -59,6 +62,7 @@ async def test_probe_sqli_no_params_returns_empty():
 
 @pytest.mark.asyncio
 async def test_probe_sqli_finds_vulnerability():
+    """probe_sqli reports a vulnerability when a parameterized request errors."""
     with respx.mock:
         respx.get(url__regex=r"http://example\.com/\?id=.*").mock(
             return_value=httpx.Response(200, text="mysql_fetch_array() error occurred")
@@ -72,6 +76,7 @@ async def test_probe_sqli_finds_vulnerability():
 
 @pytest.mark.asyncio
 async def test_mssql_error_signature_detected():
+    """_test_payload flags error-based SQLi on an MSSQL error signature."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     payload = "' OR '1'='1"
@@ -88,6 +93,7 @@ async def test_mssql_error_signature_detected():
 
 @pytest.mark.asyncio
 async def test_sqlite_error_signature_detected():
+    """_test_payload flags error-based SQLi on a SQLite error signature."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     payload = "' OR '1'='1"
@@ -106,6 +112,7 @@ async def test_sqlite_error_signature_detected():
 
 @pytest.mark.asyncio
 async def test_time_based_blind_detected():
+    """_test_time_based flags blind SQLi when response latency exceeds the threshold."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     with respx.mock:
@@ -148,6 +155,7 @@ async def test_time_based_blind_detected():
 
 @pytest.mark.asyncio
 async def test_time_based_blind_not_triggered_fast_response():
+    """_test_time_based returns None when responses are fast (no delay induced)."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     async with client:
@@ -168,6 +176,7 @@ async def test_time_based_blind_not_triggered_fast_response():
 
 @pytest.mark.asyncio
 async def test_boolean_blind_detected():
+    """_test_boolean_blind flags SQLi when true/false conditions yield differing bodies."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     async with client:
@@ -197,6 +206,7 @@ async def test_boolean_blind_detected():
 
 @pytest.mark.asyncio
 async def test_boolean_blind_not_triggered_identical_responses():
+    """_test_boolean_blind returns None when true/false conditions return identical bodies."""
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
     async with client:
@@ -216,6 +226,7 @@ async def test_boolean_blind_not_triggered_identical_responses():
 # --- POST form scanning tests ---
 
 def test_extract_forms_basic():
+    """_extract_forms parses a form's action, method, and field names."""
     html = """
     <html><body>
       <form action="/login" method="post">
@@ -233,12 +244,14 @@ def test_extract_forms_basic():
 
 
 def test_extract_forms_no_forms():
+    """_extract_forms returns an empty list when the HTML has no forms."""
     html = "<html><body><p>No forms</p></body></html>"
     assert _extract_forms(html, "http://example.com") == []
 
 
 @pytest.mark.asyncio
 async def test_post_form_sqli_detected():
+    """_test_payload_post flags error-based SQLi via a POST form field."""
     payload = "' OR '1'='1"
     config = ClientConfig(rate_limit=0)
     client = HTTPClient(config)
@@ -262,6 +275,7 @@ async def test_post_form_sqli_detected():
 
 @pytest.mark.asyncio
 async def test_probe_sqli_scans_post_form():
+    """probe_sqli discovers a form on the page and detects SQLi via POST."""
     with respx.mock:
         # Page fetch returns a login form
         respx.get("http://example.com/login").mock(

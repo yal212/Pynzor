@@ -4,6 +4,7 @@ from modules import scanner
 
 @pytest.mark.asyncio
 async def test_port_scanner_localhost():
+    """Scanning localhost with explicit ports returns results for that target."""
     result = await scanner.scan("127.0.0.1", ports=[80, 443], timeout=2.0)
     assert result.target == "127.0.0.1"
     assert len(result.ports) > 0
@@ -11,34 +12,40 @@ async def test_port_scanner_localhost():
 
 @pytest.mark.asyncio
 async def test_port_scanner_no_target():
+    """Scanning with default ports returns a non-None port list."""
     result = await scanner.scan("127.0.0.1")
     assert result.target == "127.0.0.1"
     assert result.ports is not None
 
 
 def test_parse_ports_single_and_list():
+    """parse_ports handles a single port and a comma-separated list (sorted)."""
     assert scanner.parse_ports("80") == [80]
     assert scanner.parse_ports("80,443,22") == [22, 80, 443]
 
 
 def test_parse_ports_range():
+    """parse_ports expands hyphenated ranges, alone and mixed with single ports."""
     assert scanner.parse_ports("78-81") == [78, 79, 80, 81]
     assert scanner.parse_ports("80,443,8000-8002") == [80, 443, 8000, 8001, 8002]
 
 
 def test_parse_ports_dedup_and_clamp():
+    """parse_ports deduplicates, clamps out-of-range ports, and tolerates reversed ranges."""
     assert scanner.parse_ports("80,80,443") == [80, 443]
     assert scanner.parse_ports("0,80,70000") == [80]
     assert scanner.parse_ports("85-83") == [83, 84, 85]  # reversed range tolerated
 
 
 def test_parse_service_banner_ssh():
+    """parse_service_banner extracts product and version from an OpenSSH banner."""
     product, version = scanner.parse_service_banner("SSH-2.0-OpenSSH_8.9p1 Ubuntu")
     assert product == "OpenSSH"
     assert version == "8.9p1"
 
 
 def test_parse_service_banner_http_nginx():
+    """parse_service_banner extracts product and version from an nginx Server header."""
     banner = "HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\n"
     product, version = scanner.parse_service_banner(banner)
     assert product == "nginx"
@@ -46,12 +53,14 @@ def test_parse_service_banner_http_nginx():
 
 
 def test_parse_service_banner_ftp():
+    """parse_service_banner extracts product and version from a ProFTPD banner."""
     product, version = scanner.parse_service_banner("220 ProFTPD 1.3.5 Server ready")
     assert product == "ProFTPD"
     assert version == "1.3.5"
 
 
 def test_parse_service_banner_none():
+    """parse_service_banner returns (None, None) for None or empty input."""
     assert scanner.parse_service_banner(None) == (None, None)
     assert scanner.parse_service_banner("") == (None, None)
 
@@ -80,6 +89,7 @@ class _FakeWriter:
 
 @pytest.mark.asyncio
 async def test_grab_banner_reads_service_banner(monkeypatch):
+    """grab_banner returns the banner text read from a connected socket."""
     async def fake_open_connection(host, port, ssl=None):
         return _FakeReader(b"SSH-2.0-OpenSSH_8.9p1\r\n"), _FakeWriter()
 
@@ -91,6 +101,7 @@ async def test_grab_banner_reads_service_banner(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_grab_banner_connection_failure_returns_none(monkeypatch):
+    """grab_banner returns None when the connection cannot be established."""
     async def fake_open_connection(host, port, ssl=None):
         raise OSError("connection refused")
 
@@ -100,6 +111,7 @@ async def test_grab_banner_connection_failure_returns_none(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_scan_service_detection_populates_version(monkeypatch):
+    """scan with service_detection populates product/version from the grabbed banner."""
     async def fake_scan_port(host, port, timeout=3.0):
         return scanner.PortResult(port=port, status="open", service="SSH", latency=0.01)
 
@@ -115,6 +127,7 @@ async def test_scan_service_detection_populates_version(monkeypatch):
 
 
 def test_format_nmap_text_layout():
+    """format_nmap_text renders port, version, and open-count lines."""
     from datetime import datetime
 
     result = scanner.ScanResult(
@@ -135,6 +148,7 @@ def test_format_nmap_text_layout():
 
 
 def test_format_nmap_text_hides_closed_ports():
+    """format_nmap_text omits closed ports and reports the not-shown count."""
     from datetime import datetime
 
     result = scanner.ScanResult(

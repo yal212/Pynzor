@@ -19,6 +19,7 @@ def make_results():
 
 
 def test_save_json_report_writes_valid_json(tmp_path):
+    """save_json_report writes a file containing valid, round-trippable JSON."""
     out = tmp_path / "report.json"
     save_json_report(make_results(), str(out))
     assert out.exists()
@@ -27,6 +28,7 @@ def test_save_json_report_writes_valid_json(tmp_path):
 
 
 def test_reporter_save_and_load(tmp_path):
+    """Reporter.save then Reporter.load round-trips the results."""
     out = tmp_path / "report.json"
     r = Reporter()
     r.save(make_results(), out)
@@ -35,6 +37,7 @@ def test_reporter_save_and_load(tmp_path):
 
 
 def test_generate_scan_summary_tallies_correctly():
+    """generate_scan_summary counts completed modules, vulns, and total requests."""
     summary = generate_scan_summary(make_results())
     assert "scanner" in summary["modules_completed"]
     assert "sqli" in summary["modules_completed"]
@@ -45,6 +48,7 @@ def test_generate_scan_summary_tallies_correctly():
 
 
 def test_reporter_save_html(tmp_path):
+    """Reporter.save_html renders an HTML report containing the target and title."""
     out = tmp_path / "report.html"
     r = Reporter()
     r.save_html(make_results(), out)

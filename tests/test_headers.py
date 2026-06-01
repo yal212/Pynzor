@@ -6,6 +6,7 @@ from modules.headers import analyze_headers, HeaderResult
 
 @pytest.mark.asyncio
 async def test_analyze_headers_all_missing_grade_f():
+    """All security headers missing yields a low score and grade F."""
     with respx.mock:
         respx.get("http://example.com/").mock(
             return_value=httpx.Response(200, headers={"content-type": "text/html"})
@@ -19,6 +20,7 @@ async def test_analyze_headers_all_missing_grade_f():
 
 @pytest.mark.asyncio
 async def test_analyze_headers_error_path_returns_list_not_none():
+    """A 5xx error response still yields list-typed analysis fields, not None."""
     with respx.mock:
         respx.get("http://example.com/").mock(
             return_value=httpx.Response(500, text="Internal Server Error")
@@ -31,6 +33,7 @@ async def test_analyze_headers_error_path_returns_list_not_none():
 
 @pytest.mark.asyncio
 async def test_analyze_headers_with_security_headers():
+    """All security headers present yields a high score and grade A."""
     headers = {
         "strict-transport-security": "max-age=31536000; includeSubDomains",
         "content-security-policy": "default-src 'self'",

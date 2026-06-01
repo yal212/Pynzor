@@ -70,6 +70,8 @@ SECURITY_HEADERS = {
 
 @dataclass
 class HeaderAnalysis:
+    """Assessment of a single security header: presence, value, and risk."""
+
     header: str
     present: bool
     value: Optional[str]
@@ -80,6 +82,8 @@ class HeaderAnalysis:
 
 @dataclass
 class HeaderResult:
+    """Full security-header analysis for a target, including score and grade."""
+
     target: str
     start_time: datetime
     end_time: datetime
@@ -92,6 +96,20 @@ class HeaderResult:
 async def analyze_headers(
     target: str, http_client: HTTPClient | None = None
 ) -> HeaderResult:
+    """Fetch a target and grade its HTTP security headers.
+
+    Checks for a standard set of security headers, deducts points per missing
+    header weighted by risk, and assigns a letter grade.
+
+    Args:
+        target: URL to request.
+        http_client: Optional client to reuse; one is created and closed if
+            not provided.
+
+    Returns:
+        A :class:`HeaderResult`. On request error, a default (grade "F",
+        empty analysis) result is returned.
+    """
     start_time = datetime.now()
     result = HeaderResult(
         target=target, start_time=start_time, end_time=start_time, missing_headers=[]
