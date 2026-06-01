@@ -408,6 +408,7 @@ def ports(
                     "banner": p.banner,
                 }
                 for p in result.ports
+                if p.status != "closed"
             ],
         },
         report_file,

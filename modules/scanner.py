@@ -245,12 +245,16 @@ def format_nmap_text(result: ScanResult) -> str:
         "",
         f"{'PORT':<10}{'STATE':<10}{'SERVICE':<14}VERSION",
     ]
-    for p in result.ports:
+    shown = [p for p in result.ports if p.status != "closed"]
+    for p in shown:
         version = " ".join(x for x in (p.product, p.version) if x)
         lines.append(
             f"{str(p.port) + '/tcp':<10}{p.status:<10}{(p.service or ''):<14}{version}"
         )
     open_count = len([p for p in result.ports if p.status == "open"])
+    hidden = len(result.ports) - len(shown)
     lines.append("")
+    if hidden:
+        lines.append(f"Not shown: {hidden} closed port(s)")
     lines.append(f"{open_count} open port(s) of {len(result.ports)} scanned")
     return "\n".join(lines) + "\n"

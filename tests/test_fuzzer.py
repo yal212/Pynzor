@@ -6,6 +6,7 @@ from modules.fuzzer import (
     fuzz_request,
     load_wordlist,
     expand_candidates,
+    is_request_mode,
     FuzzResult,
 )
 
@@ -270,3 +271,45 @@ async def test_fuzz_request_url_keyword_substitution():
         )
     assert len(result.found) == 1
     assert result.found[0].word == "admin"
+
+
+@pytest.mark.asyncio
+async def test_fuzz_request_does_not_follow_redirects():
+    # ffuf treats 3xx as terminal; the client must not resolve a 301 to its
+    # 200 target, otherwise -mc 301 could never match.
+    with respx.mock:
+        respx.get("http://example.com/old").mock(
+            return_value=httpx.Response(301, headers={"Location": "/new"})
+        )
+        respx.get("http://example.com/keep").mock(
+            return_value=httpx.Response(404, text="no")
+        )
+        result = await fuzz_request(
+            "http://example.com/FUZZ",
+            ["old", "keep"],
+            match_codes=[301],
+        )
+    assert len(result.found) == 1
+    assert result.found[0].word == "old"
+    assert result.found[0].status_code == 301
+
+
+def test_is_request_mode_empty_data_stays_directory():
+    # An empty --data must not flip directory fuzzing into request mode.
+    assert is_request_mode("http://example.com", data="") is False
+    assert is_request_mode("http://example.com", data="x=1") is True
+
+
+@pytest.mark.asyncio
+async def test_fuzz_directory_caps_candidates():
+    # max_candidates must bound per-base fan-out, not just the BFS loop.
+    with respx.mock:
+        respx.route().mock(return_value=httpx.Response(404, text="no"))
+        result = await fuzz_directory(
+            "http://example.com",
+            [f"w{i}" for i in range(20)],
+            threads=5,
+            use_baseline=False,
+            max_candidates=3,
+        )
+    assert result.scanned == 3

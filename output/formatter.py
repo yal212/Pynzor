@@ -29,9 +29,12 @@ class Formatter:
         console.print(f"[blue]{escape(message)}[/blue]")
 
     def print_scanner_results(self, result) -> None:
+        # Hide closed ports so large range scans (e.g. -p 1-1000) stay readable.
+        shown = [p for p in result.ports if p.status != "closed"]
+        hidden = len(result.ports) - len(shown)
         show_version = any(
             getattr(p, "product", None) or getattr(p, "version", None)
-            for p in result.ports
+            for p in shown
         )
 
         table = Table(
@@ -44,7 +47,7 @@ class Formatter:
             table.add_column("Version", style="green")
         table.add_column("Latency", justify="right")
 
-        for port in result.ports:
+        for port in shown:
             status = port.status
             status_style = (
                 "green"
@@ -66,6 +69,8 @@ class Formatter:
             row.append(f"{port.latency:.3f}s")
             table.add_row(*row)
         console.print(table)
+        if hidden:
+            console.print(f"[dim]Not shown: {hidden} closed port(s)[/dim]")
 
     def print_fuzzer_results(self, result) -> None:
         request_mode = getattr(result, "mode", "directory") == "request"

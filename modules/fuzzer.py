@@ -21,14 +21,14 @@ def is_request_mode(
     method: str = "GET",
 ) -> bool:
     """ffuf-style request fuzzing applies when a FUZZ keyword appears in the
-    target or header values, a non-GET method is used, or a request body is
-    supplied. Otherwise we run gobuster-style directory fuzzing."""
+    target or header values, a non-GET method is used, or a non-empty request
+    body is supplied. Otherwise we run gobuster-style directory fuzzing."""
     header_values = " ".join((headers or {}).values())
     return (
         FUZZ_KEYWORD in target
         or FUZZ_KEYWORD in header_values
         or method.upper() != "GET"
-        or data is not None
+        or bool(data)
     )
 
 
@@ -186,6 +186,10 @@ async def fuzz_directory(
         status_codes = [200, 201, 204, 301, 302, 307, 401, 403]
 
     candidates = expand_candidates(wordlist, extensions)
+    # Bound per-base fan-out: extensions can multiply a wordlist into 100k+
+    # candidates, and each base schedules every candidate at once.
+    if len(candidates) > max_candidates:
+        candidates = candidates[:max_candidates]
 
     start_time = datetime.now()
     result = FuzzScanResult(target=target, start_time=start_time, end_time=start_time)
@@ -293,7 +297,9 @@ async def fuzz_request(
         target=target, start_time=start_time, end_time=start_time, mode="request"
     )
 
-    config = ClientConfig(rate_limit=0.1)
+    # Don't follow redirects: ffuf treats 3xx as terminal so -mc 301,302,307
+    # (and the default matcher) can actually match instead of resolving to 200.
+    config = ClientConfig(rate_limit=0.1, follow_redirects=False)
     client = HTTPClient(config)
     semaphore = asyncio.Semaphore(threads)
 

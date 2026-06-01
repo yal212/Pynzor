@@ -132,3 +132,23 @@ def test_format_nmap_text_layout():
     assert "22/tcp" in text
     assert "OpenSSH 9.6p1" in text
     assert "1 open port(s)" in text
+
+
+def test_format_nmap_text_hides_closed_ports():
+    from datetime import datetime
+
+    result = scanner.ScanResult(
+        target="example.com",
+        start_time=datetime(2026, 5, 29, 12, 0, 0),
+        end_time=datetime(2026, 5, 29, 12, 0, 1),
+        ports=[
+            scanner.PortResult(port=22, status="open", service="SSH", latency=0.01),
+            scanner.PortResult(port=23, status="closed", service="Telnet", latency=0.0),
+            scanner.PortResult(port=25, status="closed", service="SMTP", latency=0.0),
+        ],
+    )
+    text = scanner.format_nmap_text(result)
+    assert "22/tcp" in text
+    assert "23/tcp" not in text
+    assert "Not shown: 2 closed port(s)" in text
+    assert "1 open port(s) of 3 scanned" in text
