@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import datetime
 from pathlib import Path
 from utils.http_client import HTTPClient, ClientConfig, Response
+from utils.validators import extract_domain
 
 
 FUZZ_KEYWORD = "FUZZ"
@@ -287,8 +288,13 @@ async def fuzz_directory(
                 redirect=response.headers.get("Location"),
             )
 
+        # Honor the global budget across recursive bases: the BFS loop only
+        # checks the cap between bases, so slice each base to what remains.
+        remaining = max_candidates - totals["scanned"]
+        if remaining <= 0:
+            return [], baseline
         results = await asyncio.gather(
-            *(fuzz_path(p) for p in candidates), return_exceptions=True
+            *(fuzz_path(p) for p in candidates[:remaining]), return_exceptions=True
         )
         base_found = []
         for r in results:
@@ -319,9 +325,15 @@ async def fuzz_directory(
             top_level = False
             found.extend(base_found)
             if recursive and level < depth:
+                target_domain = extract_domain(target)
                 for fr in base_found:
                     child = fr.url.rstrip("/")
-                    if _is_directory_hit(fr) and child not in seen_bases:
+                    # Redirects can point off-host; only recurse in-scope.
+                    if (
+                        _is_directory_hit(fr)
+                        and child not in seen_bases
+                        and extract_domain(child) == target_domain
+                    ):
                         seen_bases.add(child)
                         queue.append((child, level + 1))
 

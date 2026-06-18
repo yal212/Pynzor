@@ -128,9 +128,12 @@ def parse_ports(spec: str) -> list[int]:
                 raise ValueError(f"Invalid port range: {part!r} (expected 'lo-hi')")
             if lo > hi:
                 lo, hi = hi, lo
+            # Clamp to the valid port range before iterating; an unbounded
+            # range (e.g. "1-1000000000") would otherwise hang the process.
+            lo = max(1, lo)
+            hi = min(65535, hi)
             for p in range(lo, hi + 1):
-                if 1 <= p <= 65535:
-                    ports.add(p)
+                ports.add(p)
         else:
             try:
                 p = int(part)
@@ -201,6 +204,10 @@ async def grab_banner(host: str, port: int, timeout: float = 2.0) -> Optional[st
             data = b""
         text = data.decode("utf-8", errors="replace").strip()
         return text or None
+    except Exception:
+        # A banner read/write failure (reset, OS error, TLS error) must not
+        # drop the port: degrade to "open, no banner" by returning None.
+        return None
     finally:
         writer.close()
         try:

@@ -82,17 +82,19 @@ def normalize_url(url: str) -> str:
 
 
 def extract_domain(url_or_domain: str) -> str:
-    """Extract the network location (host[:port]) from a URL or domain.
+    """Extract the bare host (no port) from a URL or domain.
 
     Args:
         url_or_domain: URL or bare domain string.
 
     Returns:
-        The netloc portion, e.g. "example.com" or "example.com:8080".
+        The hostname portion, port stripped, e.g. "example.com" for both
+        "example.com" and "example.com:8080". Suitable for DNS resolution and
+        socket connections.
     """
     normalized = normalize_url(url_or_domain)
     parsed = urlparse(normalized)
-    return parsed.netloc
+    return parsed.hostname or parsed.netloc
 
 
 def extract_root_domain(domain: str) -> str:

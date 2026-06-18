@@ -331,3 +331,56 @@ async def test_fuzz_directory_caps_candidates():
             max_candidates=3,
         )
     assert result.scanned == 3
+
+
+@pytest.mark.asyncio
+async def test_fuzz_directory_recursion_respects_max_candidates():
+    """Recursive fuzzing stays within max_candidates across descended bases."""
+    with respx.mock:
+        # admin is a directory hit, so recursion would descend into it; the
+        # budget must still cap total requests across both levels.
+        respx.get("http://example.com/admin").mock(
+            return_value=httpx.Response(200, text="dir index")
+        )
+        respx.route().mock(return_value=httpx.Response(404, text="no"))
+        result = await fuzz_directory(
+            "http://example.com",
+            ["admin", "login", "test", "data"],
+            threads=5,
+            use_baseline=False,
+            recursive=True,
+            depth=2,
+            max_candidates=5,
+        )
+    assert result.scanned <= 5
+
+
+@pytest.mark.asyncio
+async def test_fuzz_directory_recursion_stays_in_scope():
+    """A directory hit that redirects off-host is not descended into."""
+    with respx.mock:
+        # /admin redirects to an external host; the client follows it, so the
+        # discovered URL is on evil.com. Recursion must not scan that host.
+        respx.get("http://example.com/admin").mock(
+            return_value=httpx.Response(302, headers={"Location": "http://evil.com/admin"})
+        )
+        respx.get("http://evil.com/admin").mock(
+            return_value=httpx.Response(200, text="external dir")
+        )
+        respx.get("http://example.com/login").mock(
+            return_value=httpx.Response(404, text="no")
+        )
+        # Tripwire: if recursion leaked off-host, this would be requested.
+        evil_child = respx.get("http://evil.com/admin/login").mock(
+            return_value=httpx.Response(200, text="leaked")
+        )
+        result = await fuzz_directory(
+            "http://example.com",
+            ["admin", "login"],
+            threads=2,
+            use_baseline=False,
+            recursive=True,
+            depth=1,
+        )
+    assert not evil_child.called
+    assert all("evil.com/admin/" not in f.url for f in result.found)

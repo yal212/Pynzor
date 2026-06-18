@@ -37,6 +37,16 @@ def test_parse_ports_dedup_and_clamp():
     assert scanner.parse_ports("85-83") == [83, 84, 85]  # reversed range tolerated
 
 
+def test_parse_ports_clamps_huge_range():
+    """An out-of-bounds range is clamped to 1-65535 instead of hanging the process."""
+    result = scanner.parse_ports("1-100000000")
+    assert result[0] == 1
+    assert result[-1] == 65535
+    assert len(result) == 65535
+    # An open-ended-feeling upper bound still clamps to the max valid port.
+    assert scanner.parse_ports("80-100000")[-1] == 65535
+
+
 def test_parse_service_banner_ssh():
     """parse_service_banner extracts product and version from an OpenSSH banner."""
     product, version = scanner.parse_service_banner("SSH-2.0-OpenSSH_8.9p1 Ubuntu")
@@ -104,6 +114,20 @@ async def test_grab_banner_connection_failure_returns_none(monkeypatch):
     """grab_banner returns None when the connection cannot be established."""
     async def fake_open_connection(host, port, ssl=None):
         raise OSError("connection refused")
+
+    monkeypatch.setattr(scanner.asyncio, "open_connection", fake_open_connection)
+    assert await scanner.grab_banner("host", 22, timeout=1.0) is None
+
+
+@pytest.mark.asyncio
+async def test_grab_banner_read_error_returns_none(monkeypatch):
+    """A read/reset failure after connecting returns None (port is not dropped)."""
+    class _RaisingReader:
+        async def read(self, n: int) -> bytes:
+            raise ConnectionResetError("connection reset by peer")
+
+    async def fake_open_connection(host, port, ssl=None):
+        return _RaisingReader(), _FakeWriter()
 
     monkeypatch.setattr(scanner.asyncio, "open_connection", fake_open_connection)
     assert await scanner.grab_banner("host", 22, timeout=1.0) is None
