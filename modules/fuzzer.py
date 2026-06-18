@@ -62,12 +62,12 @@ class BaselineSignature:
     def matches(self, response: Response) -> bool:
         """Check whether a response looks like the recorded catch-all baseline.
 
-        Matches on identical status plus an identical normalized-body hash, or,
-        for larger bodies, a small length drift to tolerate dynamic tokens.
-
-        Length is checked before hashing so a multi-megabyte response is never
-        normalized/hashed unnecessarily (a hash match implies near-equal
-        length, so length already gates the comparison).
+        Length acts as a fast-path gate: a body whose size differs from the
+        baseline by more than a few percent is rejected without hashing. Within
+        that tolerance an identical normalized-body hash confirms the match, so
+        two similarly sized but genuinely different pages are not conflated. For
+        very large pages a small length drift (dynamic tokens, CSRF, timestamps)
+        is treated as a baseline match even when the hash differs.
 
         Args:
             response: The response to compare against this baseline.
@@ -79,17 +79,22 @@ class BaselineSignature:
             return False
         body = response.body or ""
         length = len(body)
-        # For larger bodies a few-percent length drift (dynamic tokens, CSRF,
-        # timestamps) already counts as a match, so decide by length alone and
-        # never hash a large body.
-        if self.content_length >= 500:
-            tolerance = max(20, int(self.content_length * 0.03))
-            return abs(length - self.content_length) <= tolerance
-        # For short bodies the hash is the only reliable signal, but skip
-        # hashing when the length is obviously off (e.g. a huge response).
-        if abs(length - self.content_length) > 100:
+        tolerance = max(20, int(self.content_length * 0.03))
+        # For short bodies the hash is the only reliable signal, so allow a
+        # wider gate (up to 100 bytes) before hashing — otherwise length drift
+        # could skip a true catch-all whose normalized body still hashes equal.
+        gate = max(tolerance, 100) if self.content_length < 500 else tolerance
+        # Fast path: a clearly different size is not the baseline, and we avoid
+        # hashing the body entirely.
+        if abs(length - self.content_length) > gate:
             return False
-        return _hash_body(body) == self.body_hash
+        # Within tolerance, an identical normalized-body hash is the reliable
+        # signal that this is the catch-all page.
+        if _hash_body(body) == self.body_hash:
+            return True
+        # For very large pages, a few-percent length drift alone is enough to
+        # treat the response as the baseline even without a hash match.
+        return self.content_length >= 5000
 
 
 @dataclass
@@ -367,6 +372,7 @@ async def fuzz_request(
     filter_size: Optional[int] = None,
     filter_words: Optional[int] = None,
     filter_lines: Optional[int] = None,
+    max_candidates: int = 20000,
 ) -> FuzzScanResult:
     """ffuf-style fuzzing: substitute the ``FUZZ`` keyword into the URL, header
     values, and/or raw body, then match/filter responses."""
@@ -374,6 +380,11 @@ async def fuzz_request(
     headers = headers or {}
     if match_codes is None:
         match_codes = list(DEFAULT_MATCH_CODES)
+
+    # Bound fan-out: every word schedules a request up front, so an oversized
+    # wordlist is capped the same way directory mode caps expanded candidates.
+    if len(wordlist) > max_candidates:
+        wordlist = wordlist[:max_candidates]
 
     start_time = datetime.now()
     result = FuzzScanResult(
@@ -424,7 +435,7 @@ async def fuzz_request(
         text = response.body or ""
         size = len(text)
         words = len(text.split())
-        lines = text.count("\n") + 1 if text else 0
+        lines = len(text.splitlines())
 
         if not _passes_filters(response.status_code, size, words, lines):
             return None

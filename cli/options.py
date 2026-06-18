@@ -59,6 +59,12 @@ threads = typer.Option(
     help="Number of threads"
 )
 
+scan_threads = typer.Option(
+    None,
+    "--threads",
+    help="Concurrent port probes (default: config 'concurrent', 50)",
+)
+
 no_baseline = typer.Option(
     False,
     "--no-baseline",

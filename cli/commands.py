@@ -31,6 +31,7 @@ from cli.options import (
     ports as ports_opt,
     service_detection as service_detection_opt,
     output_normal as output_normal_opt,
+    scan_threads as scan_threads_opt,
 )
 from utils.http_client import HTTPClient, ClientConfig
 from utils.validators import normalize_url, extract_domain
@@ -143,7 +144,7 @@ def load_config(config_path: Path | None = None):
     config_file_path = config_path or default_config
     config_base = config_file_path.parent
 
-    with open(config_file_path) as f:
+    with open(config_file_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Resolve relative wordlist paths against the config file's directory.
@@ -286,17 +287,17 @@ def fuzz(
     no_color: bool = no_color,
     config_file: Path = config_file,
     no_baseline: bool = no_baseline,
-    extensions: str = extensions_opt,
+    extensions: str | None = extensions_opt,
     recursive: bool = recursive_opt,
     depth: int | None = depth_opt,
     method: str = method_opt,
-    header: list[str] = header_opt,
-    data: str = data_opt,
-    match_codes: str = match_codes_opt,
-    filter_codes: str = filter_codes_opt,
-    filter_size: int = filter_size_opt,
-    filter_words: int = filter_words_opt,
-    filter_lines: int = filter_lines_opt,
+    header: list[str] | None = header_opt,
+    data: str | None = data_opt,
+    match_codes: str | None = match_codes_opt,
+    filter_codes: str | None = filter_codes_opt,
+    filter_size: int | None = filter_size_opt,
+    filter_words: int | None = filter_words_opt,
+    filter_lines: int | None = filter_lines_opt,
 ):
     """Directory/file fuzzing (gobuster-style) or FUZZ-keyword request fuzzing (ffuf-style)"""
     config = load_config(config_file)
@@ -348,6 +349,21 @@ def fuzz(
             typer.echo(
                 f"Warning: {', '.join(dropped)} only apply to request fuzzing "
                 "(FUZZ keyword / -X / -d); ignored in directory mode."
+            )
+    else:
+        dropped = [
+            name
+            for name, given in (
+                ("--extensions", extensions is not None),
+                ("--recursive", recursive),
+                ("--depth", depth is not None),
+            )
+            if given
+        ]
+        if dropped:
+            typer.echo(
+                f"Warning: {', '.join(dropped)} only apply to directory fuzzing; "
+                "ignored in request mode."
             )
 
     if request_mode:
@@ -405,11 +421,11 @@ def fuzz(
 @app.command()
 def ports(
     target: str = target,
-    ports: str = ports_opt,
+    ports: str | None = ports_opt,
     service_detection: bool = service_detection_opt,
-    output_normal: Path = output_normal_opt,
+    output_normal: Path | None = output_normal_opt,
     output_dir: str = output_dir,
-    threads: int = threads,
+    threads: int | None = scan_threads_opt,
     no_color: bool = no_color,
     config_file: Path = config_file,
 ):
@@ -426,6 +442,9 @@ def ports(
     except ValueError as e:
         raise typer.BadParameter(str(e), param_hint="--ports")
 
+    # --threads overrides; otherwise fall back to the config's concurrency.
+    concurrent = threads if threads is not None else scanner_cfg.get("concurrent", 50)
+
     typer.echo(f"Scanning ports on {host}")
 
     async def run_ports():
@@ -435,7 +454,7 @@ def ports(
                 host,
                 ports=port_list,
                 timeout=scanner_cfg.get("timeout", 3),
-                concurrent=threads if threads else scanner_cfg.get("concurrent", 50),
+                concurrent=concurrent,
                 service_detection=service_detection,
                 banner_timeout=scanner_cfg.get("banner_timeout", 2),
             )

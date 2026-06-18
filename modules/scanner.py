@@ -103,7 +103,7 @@ async def scan_port(host: str, port: int, timeout: float = 3.0) -> PortResult:
             service=service,
             latency=latency,
         )
-    except OSError as e:
+    except OSError:
         latency = (datetime.now() - start).total_seconds()
         return PortResult(
             port=port,

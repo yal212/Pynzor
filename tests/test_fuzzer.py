@@ -337,6 +337,20 @@ async def test_fuzz_directory_caps_candidates():
 
 
 @pytest.mark.asyncio
+async def test_fuzz_request_caps_candidates():
+    """max_candidates bounds the number of requests issued in request mode."""
+    with respx.mock:
+        respx.route().mock(return_value=httpx.Response(404, text="no"))
+        result = await fuzz_request(
+            "http://example.com/FUZZ",
+            [f"w{i}" for i in range(20)],
+            threads=5,
+            max_candidates=3,
+        )
+    assert result.scanned == 3
+
+
+@pytest.mark.asyncio
 async def test_fuzz_directory_recursion_respects_max_candidates():
     """Recursive fuzzing stays within max_candidates across descended bases."""
     with respx.mock:
@@ -394,8 +408,8 @@ def _resp(status: int, body: str) -> Response:
     return Response(url="http://x/y", status_code=status, headers={}, body=body, latency=0.0)
 
 
-def test_baseline_matches_large_body_skips_hash(monkeypatch):
-    """A large baseline within length tolerance matches without hashing the body."""
+def test_baseline_out_of_tolerance_skips_hash(monkeypatch):
+    """A body whose size is well outside tolerance is rejected without hashing."""
     import modules.fuzzer as fz
 
     baseline = BaselineSignature(
@@ -403,12 +417,21 @@ def test_baseline_matches_large_body_skips_hash(monkeypatch):
     )
 
     def _boom(_body):  # pragma: no cover - must not be called
-        raise AssertionError("_hash_body should not run for large bodies")
+        raise AssertionError("_hash_body should not run past the length gate")
 
     monkeypatch.setattr(fz, "_hash_body", _boom)
-    # Within 3% tolerance -> match; well outside -> no match. Neither hashes.
-    assert baseline.matches(_resp(200, "a" * 101_000)) is True
+    # Diff of 100_000 bytes is far beyond the 3% tolerance -> fast-path reject.
     assert baseline.matches(_resp(200, "a" * 200_000)) is False
+
+
+def test_baseline_large_body_length_drift_matches_without_hash_match():
+    """A large within-tolerance body matches even when the hash differs."""
+    baseline = BaselineSignature(
+        status_code=200, content_length=100_000, body_hash="not-the-real-hash", probe_path="p"
+    )
+    # Diff of 1_000 bytes is within 3% tolerance; hash won't match, but the
+    # >=5000 length-drift fallback treats it as the baseline.
+    assert baseline.matches(_resp(200, "a" * 101_000)) is True
 
 
 def test_baseline_short_body_length_gap_skips_hash(monkeypatch):
@@ -420,9 +443,10 @@ def test_baseline_short_body_length_gap_skips_hash(monkeypatch):
     )
 
     def _boom(_body):  # pragma: no cover - must not be called
-        raise AssertionError("_hash_body should not run on a >100-byte length gap")
+        raise AssertionError("_hash_body should not run past the length gate")
 
     monkeypatch.setattr(fz, "_hash_body", _boom)
+    # 5_000 vs 50 bytes far exceeds the max(20, 3%) tolerance -> fast-path reject.
     assert baseline.matches(_resp(200, "a" * 5_000)) is False
 
 
