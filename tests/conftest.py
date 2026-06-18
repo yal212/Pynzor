@@ -5,6 +5,7 @@ from pathlib import Path
 
 @pytest.fixture
 def event_loop():
+    """Provide a fresh asyncio event loop for async tests and close it after."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -12,6 +13,7 @@ def event_loop():
 
 @pytest.fixture
 def test_wordlist(tmp_path):
+    """Write a small temp wordlist file and return its path."""
     wordlist = tmp_path / "test-wordlist.txt"
     wordlist.write_text("/admin\n/login\n/test\n")
     return wordlist
@@ -19,6 +21,7 @@ def test_wordlist(tmp_path):
 
 @pytest.fixture
 def config():
+    """Return a representative config dict for tests."""
     return {
         "http": {
             "timeout": 10,

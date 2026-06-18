@@ -17,6 +17,21 @@ from cli.options import (
     config_file,
     no_baseline,
     include_wildcard,
+    extensions as extensions_opt,
+    recursive as recursive_opt,
+    depth as depth_opt,
+    method as method_opt,
+    header as header_opt,
+    data as data_opt,
+    match_codes as match_codes_opt,
+    filter_codes as filter_codes_opt,
+    filter_size as filter_size_opt,
+    filter_words as filter_words_opt,
+    filter_lines as filter_lines_opt,
+    ports as ports_opt,
+    service_detection as service_detection_opt,
+    output_normal as output_normal_opt,
+    scan_threads as scan_threads_opt,
 )
 from utils.http_client import HTTPClient, ClientConfig
 from utils.validators import normalize_url, extract_domain
@@ -31,8 +46,76 @@ formatter = Formatter()
 console = Console()
 
 
+def _parse_int_list(value: str | None, param: str = "value") -> list[int] | None:
+    """Parse a comma-separated string of integers.
+
+    Args:
+        value: Comma-separated integers, or None/empty.
+        param: Parameter name used in error messages.
+
+    Returns:
+        The parsed list, or None if ``value`` is empty.
+
+    Raises:
+        typer.BadParameter: If any element is not an integer.
+    """
+    if not value:
+        return None
+    try:
+        return [int(p.strip()) for p in value.split(",") if p.strip()]
+    except ValueError:
+        raise typer.BadParameter(
+            f"expected comma-separated integers, got: {value!r}", param_hint=param
+        )
+
+
+def _parse_str_list(value: str | None) -> list[str] | None:
+    """Parse a comma-separated string into a list of trimmed strings.
+
+    Args:
+        value: Comma-separated values, or None/empty.
+
+    Returns:
+        The parsed list, or None if ``value`` is empty.
+    """
+    if not value:
+        return None
+    return [p.strip() for p in value.split(",") if p.strip()]
+
+
+def _parse_headers(values: list[str] | None) -> dict[str, str]:
+    """Parse ``Name: value`` header strings into a dict.
+
+    Args:
+        values: Header strings, each in ``Name: value`` form.
+
+    Returns:
+        A mapping of header name to value.
+
+    Raises:
+        typer.BadParameter: If any entry lacks a colon separator.
+    """
+    headers: dict[str, str] = {}
+    for raw in values or []:
+        if ":" not in raw:
+            raise typer.BadParameter(f"Invalid header (expected 'Name: value'): {raw}")
+        name, _, val = raw.partition(":")
+        headers[name.strip()] = val.strip()
+    return headers
+
+
 @contextmanager
 def spinner(msg: str, use_color: bool = True):
+    """Context manager showing a status spinner (or plain text in no-color mode).
+
+    Args:
+        msg: Status message to display.
+        use_color: If True, show an animated rich spinner; otherwise print
+            ``msg + "..."`` once.
+
+    Yields:
+        Control to the wrapped block while the spinner is active.
+    """
     if use_color:
         with console.status(f"[cyan]{msg}[/cyan]", spinner="dots"):
             yield
@@ -42,13 +125,26 @@ def spinner(msg: str, use_color: bool = True):
 
 
 def load_config(config_path: Path | None = None):
+    """Load the YAML config, resolving relative wordlist paths.
+
+    Relative ``wordlist`` paths (under ``fuzzer``/``subdomain`` and the
+    ``wordlists`` map) are resolved against the config file's directory so the
+    CLI works when run as a bundled executable.
+
+    Args:
+        config_path: Path to a config file; defaults to the bundled
+            ``config.yaml`` beside this module.
+
+    Returns:
+        The parsed configuration dict.
+    """
     import yaml
 
     default_config = Path(__file__).parent / "config.yaml"
     config_file_path = config_path or default_config
     config_base = config_file_path.parent
 
-    with open(config_file_path) as f:
+    with open(config_file_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Resolve relative wordlist paths against the config file's directory.
@@ -89,6 +185,7 @@ def scan(
     }
 
     async def run_all():
+        """Run every module in sequence and collect their results."""
         http_config = ClientConfig(
             timeout=config["http"].get("timeout", 10),
             max_retries=config["http"].get("max_retries", 3),
@@ -190,23 +287,109 @@ def fuzz(
     no_color: bool = no_color,
     config_file: Path = config_file,
     no_baseline: bool = no_baseline,
+    extensions: str | None = extensions_opt,
+    recursive: bool = recursive_opt,
+    depth: int | None = depth_opt,
+    method: str = method_opt,
+    header: list[str] | None = header_opt,
+    data: str | None = data_opt,
+    match_codes: str | None = match_codes_opt,
+    filter_codes: str | None = filter_codes_opt,
+    filter_size: int | None = filter_size_opt,
+    filter_words: int | None = filter_words_opt,
+    filter_lines: int | None = filter_lines_opt,
 ):
-    """Directory/file fuzzing"""
+    """Directory/file fuzzing (gobuster-style) or FUZZ-keyword request fuzzing (ffuf-style)"""
     config = load_config(config_file)
     formatter.no_color = no_color
+    fuzzer_cfg = config.get("fuzzer", {})
 
-    normalized = normalize_url(target)
-    wordlist_path = str(wordlist) if wordlist else config["fuzzer"]["wordlist"]
+    headers = _parse_headers(header)
+    request_mode = modules.is_request_mode(
+        target, headers=headers, data=data, method=method
+    )
 
-    typer.echo(f"Fuzzing directories on {normalized}")
+    # FUZZ-mode keeps the keyword-bearing target intact (only ensuring a
+    # scheme so requests resolve); directory-mode normalizes to a clean base URL.
+    if request_mode:
+        normalized = target.strip()
+        if not normalized.startswith(("http://", "https://")):
+            normalized = f"https://{normalized}"
+    else:
+        normalized = normalize_url(target)
+    wordlist_path = str(wordlist) if wordlist else fuzzer_cfg["wordlist"]
+
+    # Extensions: -x omitted -> config default (directory mode only);
+    # -x "" -> explicit opt-out (bare words only); -x "php,html" -> those.
+    if extensions is None:
+        ext_list = None if request_mode else fuzzer_cfg.get("extensions")
+    else:
+        ext_list = _parse_str_list(extensions)
+
+    effective_depth = depth if depth is not None else fuzzer_cfg.get("recursion_depth", 1)
+
+    match_list = _parse_int_list(match_codes, "--match-codes")
+    if match_list is None and request_mode:
+        match_list = fuzzer_cfg.get("match_codes")
+    filter_list = _parse_int_list(filter_codes, "--filter-codes")
+
+    if not request_mode:
+        dropped = [
+            name
+            for name, given in (
+                ("--match-codes", bool(match_codes)),
+                ("--filter-codes", bool(filter_codes)),
+                ("--filter-size", filter_size is not None),
+                ("--filter-words", filter_words is not None),
+                ("--filter-lines", filter_lines is not None),
+            )
+            if given
+        ]
+        if dropped:
+            typer.echo(
+                f"Warning: {', '.join(dropped)} only apply to request fuzzing "
+                "(FUZZ keyword / -X / -d); ignored in directory mode."
+            )
+    else:
+        dropped = [
+            name
+            for name, given in (
+                ("--extensions", extensions is not None),
+                ("--recursive", recursive),
+                ("--depth", depth is not None),
+            )
+            if given
+        ]
+        if dropped:
+            typer.echo(
+                f"Warning: {', '.join(dropped)} only apply to directory fuzzing; "
+                "ignored in request mode."
+            )
+
+    if request_mode:
+        typer.echo(f"Fuzzing requests on {normalized}")
+    else:
+        typer.echo(f"Fuzzing directories on {normalized}")
 
     async def run_fuzz():
-        with spinner("Fuzzing directories", not no_color):
+        """Run the fuzzer with the resolved options and print results."""
+        with spinner("Fuzzing", not no_color):
             result = await modules.fuzz(
                 normalized,
                 wordlist_path,
                 threads,
                 use_baseline=not no_baseline,
+                extensions=ext_list,
+                recursive=recursive,
+                depth=effective_depth,
+                method=method,
+                headers=headers or None,
+                data=data,
+                match_codes=match_list,
+                filter_codes=filter_list,
+                filter_size=filter_size,
+                filter_words=filter_words,
+                filter_lines=filter_lines,
             )
         formatter.print_fuzzer_results(result)
         return result
@@ -217,7 +400,94 @@ def fuzz(
     output_path.mkdir(exist_ok=True, parents=True)
     report_file = output_path / f"fuzz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
-        {"target": normalized, "found": [r.url for r in result.found]}, report_file
+        {
+            "target": normalized,
+            "mode": result.mode,
+            "found": [
+                {
+                    "url": r.url,
+                    "status": r.status_code,
+                    "length": r.content_length,
+                    "word": r.word,
+                }
+                for r in result.found
+            ],
+        },
+        report_file,
+    )
+    typer.echo(f"\nReport saved to: {report_file}")
+
+
+@app.command()
+def ports(
+    target: str = target,
+    ports: str | None = ports_opt,
+    service_detection: bool = service_detection_opt,
+    output_normal: Path | None = output_normal_opt,
+    output_dir: str = output_dir,
+    threads: int | None = scan_threads_opt,
+    no_color: bool = no_color,
+    config_file: Path = config_file,
+):
+    """Port scan with optional service/version detection (nmap-style)"""
+    from modules.scanner import parse_ports, format_nmap_text
+
+    config = load_config(config_file)
+    formatter.no_color = no_color
+
+    host = extract_domain(normalize_url(target))
+    scanner_cfg = config.get("scanner", {})
+    try:
+        port_list = parse_ports(ports) if ports else scanner_cfg.get("common_ports")
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--ports")
+
+    # --threads overrides; otherwise fall back to the config's concurrency.
+    concurrent = threads if threads is not None else scanner_cfg.get("concurrent", 50)
+
+    typer.echo(f"Scanning ports on {host}")
+
+    async def run_ports():
+        """Run the port scan with the resolved options and print results."""
+        with spinner("Scanning ports", not no_color):
+            result = await modules.scan(
+                host,
+                ports=port_list,
+                timeout=scanner_cfg.get("timeout", 3),
+                concurrent=concurrent,
+                service_detection=service_detection,
+                banner_timeout=scanner_cfg.get("banner_timeout", 2),
+            )
+        formatter.print_scanner_results(result)
+        return result
+
+    result = asyncio.run(run_ports())
+
+    if output_normal:
+        output_normal.parent.mkdir(exist_ok=True, parents=True)
+        output_normal.write_text(format_nmap_text(result))
+        typer.echo(f"Plain-text report saved to: {output_normal}")
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = output_path / f"ports_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    reporter.save(
+        {
+            "target": host,
+            "ports": [
+                {
+                    "port": p.port,
+                    "status": p.status,
+                    "service": p.service,
+                    "product": p.product,
+                    "version": p.version,
+                    "banner": p.banner,
+                }
+                for p in result.ports
+                if p.status != "closed"
+            ],
+        },
+        report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
 
@@ -238,6 +508,7 @@ def headers_cmd(
     typer.echo(f"Analyzing headers on {normalized}")
 
     async def run_headers():
+        """Run header analysis and print results."""
         with spinner("Analyzing headers", not no_color):
             result = await modules.analyze(normalized, None)
         formatter.print_headers_results(result)
@@ -273,6 +544,7 @@ def sqli(
     typer.echo(f"Probing for SQL injection on {normalized}")
 
     async def run_sqli():
+        """Run the SQL injection probe and print results."""
         with spinner("Probing for SQL injection", not no_color):
             result = await modules.probe(normalized)
         formatter.print_sqli_results(result)
@@ -310,6 +582,7 @@ def xss(
     typer.echo(f"Detecting XSS on {normalized}")
 
     async def run_xss():
+        """Run XSS detection and print results."""
         with spinner("Detecting XSS", not no_color):
             result = await modules.detect(normalized)
         formatter.print_xss_results(result)
@@ -349,6 +622,7 @@ def subdomain(
     typer.echo(f"Enumerating subdomains of {domain}")
 
     async def run_subdomain():
+        """Run subdomain enumeration and print results."""
         with spinner("Enumerating subdomains", not no_color):
             result = await modules.enumerate(
                 domain,

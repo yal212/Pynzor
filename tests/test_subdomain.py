@@ -40,6 +40,7 @@ def _make_resolve(mapping: dict[str, list[str]], wildcard_ips: list[str] | None 
 
 @pytest.mark.asyncio
 async def test_subdomain_wildcard_detected_and_filters():
+    """Wildcard DNS is detected and all wildcard-matching subdomains are filtered out."""
     wildcard_ips = ["203.0.113.42"]
     side_effect = _make_resolve({}, wildcard_ips=wildcard_ips)
 
@@ -59,6 +60,7 @@ async def test_subdomain_wildcard_detected_and_filters():
 
 @pytest.mark.asyncio
 async def test_subdomain_real_subdomain_distinguished_from_wildcard():
+    """A subdomain resolving to non-wildcard IPs is kept while wildcard ones are filtered."""
     wildcard_ips = ["203.0.113.42"]
     real_ips = ["198.51.100.10"]
     side_effect = _make_resolve(
@@ -82,6 +84,7 @@ async def test_subdomain_real_subdomain_distinguished_from_wildcard():
 
 @pytest.mark.asyncio
 async def test_subdomain_no_wildcard_normal_path():
+    """Without wildcard DNS, only genuinely resolving subdomains are returned."""
     side_effect = _make_resolve(
         {"api.example.com": ["198.51.100.10"]}, wildcard_ips=None
     )
@@ -103,6 +106,7 @@ async def test_subdomain_no_wildcard_normal_path():
 
 @pytest.mark.asyncio
 async def test_subdomain_include_wildcard_flag_retains_matches():
+    """With include_wildcard set, wildcard-matching subdomains are retained and flagged."""
     wildcard_ips = ["203.0.113.42"]
     side_effect = _make_resolve({}, wildcard_ips=wildcard_ips)
 

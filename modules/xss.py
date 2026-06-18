@@ -41,6 +41,8 @@ XSS_PAYLOADS = [
 
 @dataclass
 class XSSVulnerability:
+    """A detected XSS finding with payload, type, and evidence."""
+
     url: str
     payload: str
     type: str
@@ -49,6 +51,8 @@ class XSSVulnerability:
 
 @dataclass
 class XSSResult:
+    """Aggregated XSS probe results for a target."""
+
     target: str
     start_time: datetime
     end_time: datetime
@@ -60,19 +64,23 @@ class XSSResult:
 
 
 def _is_raw_reflected(html: str, payload: str) -> bool:
+    """Return True if the payload appears verbatim (unencoded) in the HTML."""
     return payload in html
 
 
 def _is_encoded_reflected(html: str, payload: str) -> bool:
+    """Return True if an HTML-entity-encoded form of the payload appears in the HTML."""
     encoded = payload.replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     return encoded in html
 
 
 def _check_reflected(html: str, payload: str) -> bool:
+    """Return True if the payload is reflected either raw or HTML-encoded."""
     return _is_raw_reflected(html, payload) or _is_encoded_reflected(html, payload)
 
 
 def _check_dom_xss(html: str) -> bool:
+    """Return True if the HTML contains a known DOM XSS sink pattern."""
     dangerous_patterns = [
         r"\.innerHTML\s*=",
         r"\.outerHTML\s*=",
@@ -96,6 +104,17 @@ async def _test_payload(
     test_url: str,
     payload: str,
 ) -> Optional[XSSVulnerability]:
+    """Request a payload via GET and classify any reflection as XSS.
+
+    Args:
+        client: HTTP client to use.
+        test_url: Full URL with the payload already injected.
+        payload: The payload string, used for reflection matching.
+
+    Returns:
+        An :class:`XSSVulnerability` (stored, reflected, or dom) if detected,
+        else None.
+    """
     response = await client.get(test_url)
 
     if response.error:
@@ -206,6 +225,21 @@ async def detect_xss(
     max_payloads: int = 20,
     threads: int = 5,
 ) -> XSSResult:
+    """Probe a target for reflected/stored/DOM XSS via GET params and forms.
+
+    Injects payloads into query parameters and discovered POST form fields,
+    then checks responses for reflection or DOM sinks, under a concurrency
+    limit.
+
+    Args:
+        target: URL to probe (query string is used to discover parameters).
+        max_payloads: Maximum number of payloads to try.
+        threads: Maximum concurrent requests.
+
+    Returns:
+        An :class:`XSSResult`; ``vulnerable`` is set if any finding is made.
+        Returns early with no findings when there are no params or forms.
+    """
     start_time = datetime.now()
     result = XSSResult(target=target, start_time=start_time, end_time=start_time)
 
@@ -232,6 +266,7 @@ async def detect_xss(
             forms = _extract_forms(page_response.body, base_url)
 
         async def limited_test_get(payload: str) -> Optional[XSSVulnerability]:
+            """Test one payload via GET across all query parameters."""
             nonlocal errors, tested
             for param in param_names:
                 async with semaphore:
@@ -243,6 +278,7 @@ async def detect_xss(
             return None
 
         async def limited_test_post(payload: str) -> Optional[XSSVulnerability]:
+            """Test one payload via POST across all discovered forms."""
             nonlocal errors, tested
             for form in forms:
                 async with semaphore:

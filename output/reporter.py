@@ -5,13 +5,27 @@ from typing import Any
 
 
 class Reporter:
+    """Persists and loads scan results and builds report summaries."""
+
     def save(self, data: Any, output_path: Path) -> None:
+        """Serialize results and write them as JSON.
+
+        Args:
+            data: Scan result object or dict to serialize.
+            output_path: Destination file path (parent dirs are created).
+        """
         serialized = serialize_result(data)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
             json.dump(serialized, f, indent=2, default=str)
 
     def save_html(self, data: Any, output_path: Path) -> None:
+        """Render results to an HTML report via the Jinja2 template.
+
+        Args:
+            data: Scan result object or dict to serialize and render.
+            output_path: Destination ``.html`` path (parent dirs are created).
+        """
         from jinja2 import Environment, FileSystemLoader
         serialized = serialize_result(data)
         summary = generate_scan_summary(serialized)
@@ -24,14 +38,41 @@ class Reporter:
             f.write(html)
 
     def load(self, input_path: Path) -> dict:
+        """Load a previously saved JSON report.
+
+        Args:
+            input_path: Path to the JSON report file.
+
+        Returns:
+            The parsed report as a dict.
+        """
         with open(input_path, "r") as f:
             return json.load(f)
 
     def generate_summary(self, results: dict) -> dict:
+        """Build a high-level summary of a results dict.
+
+        Args:
+            results: Serialized scan results.
+
+        Returns:
+            A summary dict (see :func:`generate_scan_summary`).
+        """
         return generate_scan_summary(results)
 
 
 def serialize_result(obj: Any) -> Any:
+    """Recursively convert result objects into JSON-serializable structures.
+
+    Walks ``__dict__`` attributes and lists, converting datetimes to ISO
+    strings and nested objects to dicts.
+
+    Args:
+        obj: A result object, datetime, list, or primitive.
+
+    Returns:
+        A JSON-serializable equivalent of ``obj``.
+    """
     if hasattr(obj, "__dict__"):
         result = {}
         for key, value in obj.__dict__.items():
@@ -52,6 +93,12 @@ def serialize_result(obj: Any) -> Any:
 
 
 def save_json_report(data: Any, output_path: str) -> None:
+    """Serialize results and write them to a JSON file path.
+
+    Args:
+        data: Scan result object or dict to serialize.
+        output_path: Destination file path (parent dirs are created).
+    """
     serialized = serialize_result(data)
 
     output_file = Path(output_path)
@@ -62,11 +109,32 @@ def save_json_report(data: Any, output_path: str) -> None:
 
 
 def load_json_report(input_path: str) -> dict:
+    """Load a JSON report from a file path.
+
+    Args:
+        input_path: Path to the JSON report file.
+
+    Returns:
+        The parsed report as a dict.
+    """
     with open(input_path, "r") as f:
         return json.load(f)
 
 
 def generate_scan_summary(results: dict) -> dict:
+    """Summarize scan results across modules.
+
+    Tallies completed modules, vulnerabilities found, and total requests,
+    handling both legacy top-level and current ``modules``-nested layouts.
+
+    Args:
+        results: Serialized scan results.
+
+    Returns:
+        A summary dict with keys ``target``, ``timestamp``,
+        ``modules_completed``, ``vulnerabilities_found``, and
+        ``total_requests``.
+    """
     summary = {
         "target": results.get("target", "unknown"),
         "timestamp": datetime.now().isoformat(),

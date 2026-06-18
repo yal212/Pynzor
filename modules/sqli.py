@@ -97,6 +97,8 @@ TIME_BASED_THRESHOLD = 4.0
 
 @dataclass
 class SQLiVulnerability:
+    """A detected SQL injection finding with payload, type, and evidence."""
+
     url: str
     payload: str
     type: str
@@ -105,6 +107,8 @@ class SQLiVulnerability:
 
 @dataclass
 class SQLiResult:
+    """Aggregated SQL injection probe results for a target."""
+
     target: str
     start_time: datetime
     end_time: datetime
@@ -254,6 +258,21 @@ async def probe_sqli(
     max_payloads: int = 20,
     threads: int = 5,
 ) -> SQLiResult:
+    """Probe a target for SQL injection across GET params and HTML forms.
+
+    Runs error-based, time-based blind, and boolean-based blind tests against
+    query parameters, and error-based tests against discovered POST forms,
+    all under a concurrency limit.
+
+    Args:
+        target: URL to probe (query string is used to discover parameters).
+        max_payloads: Maximum number of error-based payloads to try.
+        threads: Maximum concurrent requests.
+
+    Returns:
+        A :class:`SQLiResult`; ``vulnerable`` is set if any finding is made.
+        Returns early with no findings when there are no params or forms.
+    """
     start_time = datetime.now()
     result = SQLiResult(target=target, start_time=start_time, end_time=start_time)
 
@@ -280,6 +299,7 @@ async def probe_sqli(
             forms = _extract_forms(page_response.body, base_url)
 
         async def limited_test_get(payload: str) -> Optional[SQLiVulnerability]:
+            """Run an error-based GET test for one payload across all params."""
             nonlocal errors, tested
             for param in param_names:
                 async with semaphore:
@@ -290,6 +310,7 @@ async def probe_sqli(
             return None
 
         async def limited_test_post(payload: str) -> Optional[SQLiVulnerability]:
+            """Run an error-based POST test for one payload across all forms."""
             nonlocal errors, tested
             for form in forms:
                 async with semaphore:
@@ -302,12 +323,14 @@ async def probe_sqli(
             return None
 
         async def limited_time_based(param: str) -> Optional[SQLiVulnerability]:
+            """Run time-based blind tests for one parameter under the semaphore."""
             nonlocal tested
             async with semaphore:
                 tested += len(TIME_BASED_PAYLOADS)
                 return await _test_time_based(client, base_url, param)
 
         async def limited_boolean_blind(param: str) -> Optional[SQLiVulnerability]:
+            """Run boolean-based blind tests for one parameter under the semaphore."""
             nonlocal tested
             async with semaphore:
                 tested += len(BOOLEAN_BLIND_PAIRS) * 2

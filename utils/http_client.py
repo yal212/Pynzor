@@ -16,6 +16,8 @@ USER_AGENTS = [
 
 @dataclass
 class Response:
+    """An HTTP response, or a failed request when ``error`` is set."""
+
     url: str
     status_code: int
     headers: dict
@@ -26,6 +28,8 @@ class Response:
 
 @dataclass
 class ClientConfig:
+    """Configuration for an :class:`HTTPClient` (timeouts, retries, rate limit)."""
+
     timeout: float = 10.0
     max_retries: int = 3
     rate_limit: float = 0.1
@@ -35,13 +39,29 @@ class ClientConfig:
 
 
 class HTTPClient:
+    """Async HTTP client wrapping httpx with retries and rate limiting.
+
+    Intended for use as an async context manager (``async with HTTPClient()``),
+    which opens and closes the underlying httpx client.
+    """
+
     def __init__(self, config: Optional[ClientConfig] = None):
+        """Initialize the client.
+
+        Args:
+            config: Optional client configuration; defaults to ``ClientConfig()``.
+        """
         self.config = config or ClientConfig()
         self._client: Optional[httpx.AsyncClient] = None
         self._semaphore: Optional[asyncio.Semaphore] = None
         self._last_request_time: float = 0
 
     async def __aenter__(self):
+        """Open the underlying httpx client and return self.
+
+        Returns:
+            The ready-to-use :class:`HTTPClient` instance.
+        """
         headers = {}
         if self.config.user_agent:
             headers["User-Agent"] = self.config.user_agent
@@ -58,6 +78,7 @@ class HTTPClient:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Close the underlying httpx client on context exit."""
         if self._client:
             await self._client.aclose()
         self._client = None
@@ -80,12 +101,45 @@ class HTTPClient:
     aclose = close
 
     async def get(self, url: str) -> Response:
+        """Send a GET request.
+
+        Args:
+            url: Target URL.
+
+        Returns:
+            The :class:`Response`.
+        """
         return await self._request("GET", url)
 
     async def post(
         self, url: str, data: Optional[dict] = None, json: Optional[dict] = None
     ) -> Response:
+        """Send a POST request with form or JSON data.
+
+        Args:
+            url: Target URL.
+            data: Optional form-encoded body.
+            json: Optional JSON body.
+
+        Returns:
+            The :class:`Response`.
+        """
         return await self._request("POST", url, data=data, json=json)
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        headers: Optional[dict] = None,
+        data: Optional[dict] = None,
+        json: Optional[dict] = None,
+        content: Optional[str] = None,
+    ) -> Response:
+        """Send a request with an arbitrary method, per-request headers, and an
+        optional raw body (``content``, the ``--data-binary`` equivalent)."""
+        return await self._request(
+            method, url, data=data, json=json, headers=headers, content=content
+        )
 
     async def _request(
         self,
@@ -93,7 +147,29 @@ class HTTPClient:
         url: str,
         data: Optional[dict] = None,
         json: Optional[dict] = None,
+        headers: Optional[dict] = None,
+        content: Optional[str] = None,
     ) -> Response:
+        """Perform a request with rate limiting and retry handling.
+
+        Retries on timeouts up to ``config.max_retries``; other request errors
+        return immediately. Failures are returned as a :class:`Response` with
+        ``status_code`` 0 and ``error`` set rather than raising.
+
+        Args:
+            method: HTTP method.
+            url: Target URL.
+            data: Optional form-encoded body.
+            json: Optional JSON body.
+            headers: Optional per-request headers.
+            content: Optional raw body (``--data-binary`` equivalent).
+
+        Returns:
+            The :class:`Response`, including the error path.
+
+        Raises:
+            RuntimeError: If the client was not opened as a context manager.
+        """
         if not self._client:
             raise RuntimeError("HTTPClient must be used as context manager")
 
@@ -107,6 +183,8 @@ class HTTPClient:
                     url,
                     data=data,
                     json=json,
+                    headers=headers,
+                    content=content,
                 )
                 latency = (datetime.now() - start).total_seconds()
 
@@ -158,6 +236,7 @@ class HTTPClient:
         )
 
     async def _rate_limit(self):
+        """Sleep as needed to honor the configured minimum inter-request delay."""
         now = asyncio.get_event_loop().time()
         elapsed = now - self._last_request_time
         if elapsed < self.config.rate_limit:

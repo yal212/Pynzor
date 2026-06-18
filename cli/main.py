@@ -12,6 +12,7 @@ BANNER = r"""
 """
 
 def main():
+    """Print the banner and launch the Typer CLI application."""
     print(BANNER)
     print("Pynzor CLI v.10\n")
     app()

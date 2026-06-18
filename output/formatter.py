@@ -11,33 +11,51 @@ console = Console()
 
 
 class Formatter:
+    """Rich-based console renderer for scan results and status messages."""
+
     no_color = False
 
     def print_header(self, text: str) -> None:
+        """Print a boxed cyan header panel."""
         console.print(Panel.fit(text, style="cyan", border_style="cyan"))
 
     def print_success(self, message: str) -> None:
+        """Print a success message in green."""
         console.print(f"[green]{escape(message)}[/green]")
 
     def print_error(self, message: str) -> None:
+        """Print an error message in red."""
         console.print(f"[red]{escape(message)}[/red]")
 
     def print_warning(self, message: str) -> None:
+        """Print a warning message in yellow."""
         console.print(f"[yellow]{escape(message)}[/yellow]")
 
     def print_info(self, message: str) -> None:
+        """Print an informational message in blue."""
         console.print(f"[blue]{escape(message)}[/blue]")
 
     def print_scanner_results(self, result) -> None:
+        """Render a port-scan result table, hiding closed ports."""
+        # Hide closed ports so large range scans (e.g. -p 1-1000) stay readable.
+        shown = [p for p in result.ports if p.status != "closed"]
+        hidden = len(result.ports) - len(shown)
+        show_version = any(
+            getattr(p, "product", None) or getattr(p, "version", None)
+            for p in shown
+        )
+
         table = Table(
             title="Port Scan Results", show_header=True, header_style="bold magenta"
         )
         table.add_column("Port", style="cyan", justify="right")
         table.add_column("Status", justify="center")
         table.add_column("Service", style="blue")
+        if show_version:
+            table.add_column("Version", style="green")
         table.add_column("Latency", justify="right")
 
-        for port in result.ports:
+        for port in shown:
             status = port.status
             status_style = (
                 "green"
@@ -46,18 +64,58 @@ class Formatter:
                 if status == "closed"
                 else "yellow"
             )
-            table.add_row(
+            row = [
                 str(port.port),
                 f"[{status_style}]{status}[/{status_style}]",
                 port.service or "",
-                f"{port.latency:.3f}s",
-            )
+            ]
+            if show_version:
+                version = " ".join(
+                    x for x in (getattr(port, "product", None), getattr(port, "version", None)) if x
+                )
+                row.append(version)
+            row.append(f"{port.latency:.3f}s")
+            table.add_row(*row)
         console.print(table)
+        if hidden:
+            console.print(f"[dim]Not shown: {hidden} closed port(s)[/dim]")
 
     def print_fuzzer_results(self, result) -> None:
+        """Render fuzzing results, choosing the request- or directory-mode table."""
+        request_mode = getattr(result, "mode", "directory") == "request"
+
         if getattr(result, "baseline_detected", False):
             note = getattr(result, "baseline_note", None) or "Catch-all baseline detected"
             console.print(f"[yellow]![/yellow] {note}")
+
+        def status_style(code: int) -> str:
+            """Map an HTTP status code to a rich color name."""
+            return "green" if code < 300 else "yellow" if code < 400 else "red"
+
+        if request_mode:
+            table = Table(
+                title="Request Fuzz Results",
+                show_header=True,
+                header_style="bold magenta",
+            )
+            table.add_column("Word", style="cyan")
+            table.add_column("Status", justify="center")
+            table.add_column("Size", justify="right", style="dim")
+            table.add_column("Words", justify="right", style="dim")
+            table.add_column("Lines", justify="right", style="dim")
+
+            for f in result.found:
+                style = status_style(f.status_code)
+                table.add_row(
+                    f.word or "",
+                    f"[{style}]{f.status_code}[/{style}]",
+                    str(f.content_length),
+                    str(f.words),
+                    str(f.lines),
+                )
+            console.print(table)
+            console.print(f"Found {len(result.found)} matching responses")
+            return
 
         table = Table(
             title="Directory Fuzz Results",
@@ -69,16 +127,10 @@ class Formatter:
         table.add_column("Size", justify="right", style="dim")
 
         for f in result.found:
-            status_style = (
-                "green"
-                if f.status_code < 300
-                else "yellow"
-                if f.status_code < 400
-                else "red"
-            )
+            style = status_style(f.status_code)
             table.add_row(
                 f.url,
-                f"[{status_style}]{f.status_code}[/{status_style}]",
+                f"[{style}]{f.status_code}[/{style}]",
                 str(f.content_length),
             )
 
@@ -92,6 +144,7 @@ class Formatter:
             )
 
     def print_headers_results(self, result) -> None:
+        """Render the security-header analysis table, score, and missing headers."""
         table = Table(
             title="Security Headers Analysis",
             show_header=True,
@@ -123,6 +176,7 @@ class Formatter:
             console.print(f"Missing: {', '.join(missing)}")
 
     def print_sqli_results(self, result) -> None:
+        """Print the SQL injection verdict and triggering payload if vulnerable."""
         if result.vulnerable:
             console.print(f"[red]VULNERABLE to SQL Injection![/red]")
             console.print(f"Payload: {result.payload}")
@@ -130,6 +184,7 @@ class Formatter:
             console.print("[green]No SQL injection vulnerabilities found[/green]")
 
     def print_xss_results(self, result) -> None:
+        """Print the XSS verdict and triggering payload if vulnerable."""
         if result.vulnerable:
             console.print(f"[red]VULNERABLE to XSS![/red]")
             console.print(f"Payload: {result.payload}")
@@ -137,6 +192,7 @@ class Formatter:
             console.print("[green]No XSS vulnerabilities found[/green]")
 
     def print_subdomain_results(self, result) -> None:
+        """Render the subdomain table, plus wildcard-DNS notes and filter counts."""
         if getattr(result, "wildcard_detected", False):
             ips = ", ".join(getattr(result, "wildcard_ips", []))
             console.print(
@@ -165,30 +221,53 @@ class Formatter:
 
 
 def format_title(text: str, style: str = "bold cyan") -> Text:
+    """Build a styled rich :class:`Text` title.
+
+    Args:
+        text: Title text.
+        style: Rich style string.
+
+    Returns:
+        A styled :class:`rich.text.Text`.
+    """
     return Text(text, style=style)
 
 
 def print_header(text: str) -> None:
+    """Print a boxed cyan header panel."""
     console.print(Panel.fit(text, style="cyan", border_style="cyan"))
 
 
 def print_success(message: str) -> None:
+    """Print a success message in green."""
     console.print(f"[green]{escape(message)}[/green]")
 
 
 def print_error(message: str) -> None:
+    """Print an error message in red."""
     console.print(f"[red]{escape(message)}[/red]")
 
 
 def print_warning(message: str) -> None:
+    """Print a warning message in yellow."""
     console.print(f"[yellow]{escape(message)}[/yellow]")
 
 
 def print_info(message: str) -> None:
+    """Print an informational message in blue."""
     console.print(f"[blue]{escape(message)}[/blue]")
 
 
 def format_ports_table(ports: list[dict]) -> Table:
+    """Build a port-scan results table from a list of port dicts.
+
+    Args:
+        ports: Port records with keys like ``port``, ``status``, ``service``,
+            and ``latency``.
+
+    Returns:
+        A populated :class:`rich.table.Table`.
+    """
     table = Table(
         title="Port Scan Results", show_header=True, header_style="bold magenta"
     )
@@ -213,6 +292,15 @@ def format_ports_table(ports: list[dict]) -> Table:
 
 
 def format_directories_table(dirs: list[dict]) -> Table:
+    """Build a directory-fuzzing results table from a list of result dicts.
+
+    Args:
+        dirs: Records with keys like ``url``, ``status_code``,
+            ``content_length``, and ``redirect``.
+
+    Returns:
+        A populated :class:`rich.table.Table`.
+    """
     table = Table(
         title="Directory Fuzz Results", show_header=True, header_style="bold magenta"
     )
@@ -240,6 +328,15 @@ def format_directories_table(dirs: list[dict]) -> Table:
 
 
 def format_headers_table(headers: list[dict]) -> Table:
+    """Build a security-headers analysis table from a list of header dicts.
+
+    Args:
+        headers: Records with keys like ``header``, ``present``, ``value``,
+            and ``risk``.
+
+    Returns:
+        A populated :class:`rich.table.Table`.
+    """
     table = Table(
         title="Security Headers Analysis", show_header=True, header_style="bold magenta"
     )
@@ -266,6 +363,15 @@ def format_headers_table(headers: list[dict]) -> Table:
 
 
 def format_vulns_table(vulns: list[dict], title: str = "Vulnerabilities") -> Table:
+    """Build a vulnerabilities table from a list of finding dicts.
+
+    Args:
+        vulns: Records with keys like ``url``, ``type``, and ``evidence``.
+        title: Table title.
+
+    Returns:
+        A populated :class:`rich.table.Table`.
+    """
     table = Table(title=title, show_header=True, header_style="bold red")
     table.add_column("URL", style="cyan", no_wrap=False)
     table.add_column("Type", style="yellow")
@@ -282,6 +388,15 @@ def format_vulns_table(vulns: list[dict], title: str = "Vulnerabilities") -> Tab
 
 
 def format_subdomains_table(subdomains: list[dict]) -> Table:
+    """Build a subdomain-enumeration table from a list of subdomain dicts.
+
+    Args:
+        subdomains: Records with keys like ``subdomain``, ``record_type``,
+            and ``value``.
+
+    Returns:
+        A populated :class:`rich.table.Table`.
+    """
     table = Table(
         title="Subdomain Enumeration", show_header=True, header_style="bold magenta"
     )
@@ -300,6 +415,15 @@ def format_subdomains_table(subdomains: list[dict]) -> Table:
 
 
 def format_score(score: int, grade: str) -> Panel:
+    """Build a colored security-score panel.
+
+    Args:
+        score: Numeric score out of 100.
+        grade: Letter grade (A-F); drives the panel color.
+
+    Returns:
+        A :class:`rich.panel.Panel` showing the grade and score.
+    """
     color = "green" if grade in ["A", "B"] else "yellow" if grade == "C" else "red"
     return Panel.fit(
         f"[{color}]{grade}[/{color}] ({score}/100)",
@@ -309,6 +433,11 @@ def format_score(score: int, grade: str) -> Panel:
 
 
 def print_json(data: Any) -> None:
+    """Pretty-print a JSON-serializable value to the console.
+
+    Args:
+        data: The JSON-serializable value to render.
+    """
     import json
 
     console.print_json(data)

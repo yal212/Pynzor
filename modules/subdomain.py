@@ -13,6 +13,8 @@ DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
 
 @dataclass
 class SubdomainResult:
+    """A single discovered subdomain with its record type and resolved value."""
+
     subdomain: str
     record_type: str
     value: str
@@ -21,6 +23,8 @@ class SubdomainResult:
 
 @dataclass
 class SubdomainScanResult:
+    """Aggregated subdomain enumeration results, including wildcard handling."""
+
     target: str
     start_time: datetime
     end_time: datetime
@@ -33,6 +37,11 @@ class SubdomainScanResult:
 
 
 def _build_resolver() -> dns.resolver.Resolver:
+    """Create a DNS resolver with short query/lifetime timeouts.
+
+    Returns:
+        A configured :class:`dns.resolver.Resolver`.
+    """
     resolver = dns.resolver.Resolver()
     resolver.timeout = 3.0
     resolver.lifetime = 3.0
@@ -49,6 +58,7 @@ async def detect_wildcard(
     probes = [f"pynzor-wildcard-{uuid.uuid4().hex[:16]}.{root_domain}" for _ in range(2)]
 
     def resolve(name: str) -> Optional[set[str]]:
+        """Resolve a name's A records to a set of IP strings, or None on failure."""
         try:
             answers = resolver.resolve(name, "A")
             return {str(r) for r in answers}
@@ -78,6 +88,23 @@ async def enumerate_subdomains(
     check_http: bool = True,
     include_wildcard: bool = False,
 ) -> SubdomainScanResult:
+    """Enumerate subdomains of a target from a wordlist via DNS (and optional HTTP).
+
+    Detects wildcard DNS first and filters (or, with ``include_wildcard``,
+    flags) matching answers. Resolves A then CNAME records per candidate, with
+    an optional HTTP verification fallback when no wildcard is present.
+
+    Args:
+        target: Target domain or URL.
+        wordlist: Subdomain labels to try.
+        threads: Maximum concurrent checks.
+        check_http: Whether to attempt HTTP verification as a fallback.
+        include_wildcard: If True, keep wildcard-matching results (flagged)
+            instead of discarding them.
+
+    Returns:
+        A :class:`SubdomainScanResult` with discovered subdomains and stats.
+    """
     start_time = datetime.now()
     result = SubdomainScanResult(
         target=target, start_time=start_time, end_time=start_time
@@ -101,6 +128,7 @@ async def enumerate_subdomains(
         result.wildcard_ips = sorted(wildcard_ips)
 
     async def check_subdomain(sub: str) -> Optional[SubdomainResult]:
+        """Resolve one candidate subdomain, applying wildcard filtering and HTTP fallback."""
         nonlocal errors, scanned, wildcard_filtered
         full_domain = f"{sub}.{root_domain}"
         async with counter_lock:
@@ -182,6 +210,7 @@ async def enumerate_subdomains(
     semaphore = asyncio.Semaphore(threads)
 
     async def limited_check(sub: str) -> Optional[SubdomainResult]:
+        """Run :func:`check_subdomain` under the concurrency semaphore."""
         async with semaphore:
             return await check_subdomain(sub)
 
