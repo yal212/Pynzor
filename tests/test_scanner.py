@@ -119,6 +119,40 @@ async def test_grab_banner_connection_failure_returns_none(monkeypatch):
     assert await scanner.grab_banner("host", 22, timeout=1.0) is None
 
 
+class _RecordingWriter(_FakeWriter):
+    def __init__(self):
+        self.written = b""
+
+    def write(self, data):
+        self.written += data
+
+
+@pytest.mark.asyncio
+async def test_grab_banner_brackets_ipv6_host_header(monkeypatch):
+    """An IPv6 host is bracketed in the HTTP Host header (RFC 3986)."""
+    writer = _RecordingWriter()
+
+    async def fake_open_connection(host, port, ssl=None):
+        return _FakeReader(b"HTTP/1.0 200 OK\r\n"), writer
+
+    monkeypatch.setattr(scanner.asyncio, "open_connection", fake_open_connection)
+    await scanner.grab_banner("2001:db8::1", 80, timeout=1.0)
+    assert b"Host: [2001:db8::1]\r\n" in writer.written
+
+
+@pytest.mark.asyncio
+async def test_grab_banner_plain_host_header_unbracketed(monkeypatch):
+    """A regular hostname is sent without brackets in the Host header."""
+    writer = _RecordingWriter()
+
+    async def fake_open_connection(host, port, ssl=None):
+        return _FakeReader(b"HTTP/1.0 200 OK\r\n"), writer
+
+    monkeypatch.setattr(scanner.asyncio, "open_connection", fake_open_connection)
+    await scanner.grab_banner("example.com", 80, timeout=1.0)
+    assert b"Host: example.com\r\n" in writer.written
+
+
 @pytest.mark.asyncio
 async def test_grab_banner_read_error_returns_none(monkeypatch):
     """A read/reset failure after connecting returns None (port is not dropped)."""

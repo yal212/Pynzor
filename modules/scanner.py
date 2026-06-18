@@ -192,8 +192,11 @@ async def grab_banner(host: str, port: int, timeout: float = 2.0) -> Optional[st
 
     try:
         if port in HTTP_PORTS or use_tls:
+            # IPv6 literals must be bracketed in the Host header (RFC 3986);
+            # host is already port-stripped, so a colon implies IPv6.
+            host_header = f"[{host}]" if ":" in host else host
             request = (
-                f"GET / HTTP/1.0\r\nHost: {host}\r\n"
+                f"GET / HTTP/1.0\r\nHost: {host_header}\r\n"
                 "User-Agent: Pynzor\r\nConnection: close\r\n\r\n"
             )
             writer.write(request.encode())

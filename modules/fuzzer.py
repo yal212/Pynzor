@@ -22,12 +22,15 @@ def is_request_mode(
     method: str = "GET",
 ) -> bool:
     """ffuf-style request fuzzing applies when a FUZZ keyword appears in the
-    target or header values, a non-GET method is used, or a non-empty request
-    body is supplied. Otherwise we run gobuster-style directory fuzzing."""
-    header_values = " ".join((headers or {}).values())
+    target, header names, or header values, a non-GET method is used, or a
+    non-empty request body is supplied. Otherwise we run gobuster-style
+    directory fuzzing."""
+    header_text = " ".join(
+        f"{k} {v}" for k, v in (headers or {}).items()
+    )
     return (
         FUZZ_KEYWORD in target
-        or FUZZ_KEYWORD in header_values
+        or FUZZ_KEYWORD in header_text
         or method.upper() != "GET"
         or bool(data)
     )
@@ -62,6 +65,10 @@ class BaselineSignature:
         Matches on identical status plus an identical normalized-body hash, or,
         for larger bodies, a small length drift to tolerate dynamic tokens.
 
+        Length is checked before hashing so a multi-megabyte response is never
+        normalized/hashed unnecessarily (a hash match implies near-equal
+        length, so length already gates the comparison).
+
         Args:
             response: The response to compare against this baseline.
 
@@ -71,16 +78,18 @@ class BaselineSignature:
         if response.status_code != self.status_code:
             return False
         body = response.body or ""
-        if _hash_body(body) == self.body_hash:
-            return True
-        # For short bodies the hash is the only reliable signal. For larger
-        # bodies we also accept a small length drift (dynamic tokens, CSRF,
-        # timestamps) as a match.
-        if self.content_length < 500:
-            return False
         length = len(body)
-        tolerance = max(20, int(self.content_length * 0.03))
-        return abs(length - self.content_length) <= tolerance
+        # For larger bodies a few-percent length drift (dynamic tokens, CSRF,
+        # timestamps) already counts as a match, so decide by length alone and
+        # never hash a large body.
+        if self.content_length >= 500:
+            tolerance = max(20, int(self.content_length * 0.03))
+            return abs(length - self.content_length) <= tolerance
+        # For short bodies the hash is the only reliable signal, but skip
+        # hashing when the length is obviously off (e.g. a huge response).
+        if abs(length - self.content_length) > 100:
+            return False
+        return _hash_body(body) == self.body_hash
 
 
 @dataclass
@@ -206,7 +215,7 @@ def expand_candidates(
 def _is_directory_hit(result: FuzzResult) -> bool:
     """A hit worth recursing into: a success/redirect/forbidden status on a path
     whose last segment has no file extension."""
-    if result.status_code not in (200, 301, 302, 403):
+    if result.status_code not in (200, 301, 302, 307, 308, 403):
         return False
     last = result.url.rstrip("/").rsplit("/", 1)[-1]
     return "." not in last
@@ -396,7 +405,10 @@ async def fuzz_request(
     async def fuzz_word(word: str) -> Optional[FuzzResult]:
         """Substitute one word into the request and return a hit or None."""
         url = target.replace(FUZZ_KEYWORD, word)
-        req_headers = {k: v.replace(FUZZ_KEYWORD, word) for k, v in headers.items()}
+        req_headers = {
+            k.replace(FUZZ_KEYWORD, word): v.replace(FUZZ_KEYWORD, word)
+            for k, v in headers.items()
+        }
         body = data.replace(FUZZ_KEYWORD, word) if data is not None else None
 
         async with semaphore:
@@ -466,5 +478,5 @@ def load_wordlist(path: str) -> list[str]:
         raise FileNotFoundError(f"Wordlist not found: {path}")
     if not p.is_file():
         raise ValueError(f"Wordlist path is not a file: {path}")
-    with open(p, "r") as f:
+    with open(p, "r", encoding="utf-8", errors="ignore") as f:
         return [line.strip() for line in f if line.strip() and not line.startswith("#")]

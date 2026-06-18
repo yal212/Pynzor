@@ -8,7 +8,10 @@ from modules.fuzzer import (
     expand_candidates,
     is_request_mode,
     FuzzResult,
+    BaselineSignature,
+    _is_directory_hit,
 )
+from utils.http_client import Response
 
 
 @pytest.mark.asyncio
@@ -384,3 +387,107 @@ async def test_fuzz_directory_recursion_stays_in_scope():
         )
     assert not evil_child.called
     assert all("evil.com/admin/" not in f.url for f in result.found)
+
+
+def _resp(status: int, body: str) -> Response:
+    """Build a minimal Response for BaselineSignature.matches tests."""
+    return Response(url="http://x/y", status_code=status, headers={}, body=body, latency=0.0)
+
+
+def test_baseline_matches_large_body_skips_hash(monkeypatch):
+    """A large baseline within length tolerance matches without hashing the body."""
+    import modules.fuzzer as fz
+
+    baseline = BaselineSignature(
+        status_code=200, content_length=100_000, body_hash="unused", probe_path="p"
+    )
+
+    def _boom(_body):  # pragma: no cover - must not be called
+        raise AssertionError("_hash_body should not run for large bodies")
+
+    monkeypatch.setattr(fz, "_hash_body", _boom)
+    # Within 3% tolerance -> match; well outside -> no match. Neither hashes.
+    assert baseline.matches(_resp(200, "a" * 101_000)) is True
+    assert baseline.matches(_resp(200, "a" * 200_000)) is False
+
+
+def test_baseline_short_body_length_gap_skips_hash(monkeypatch):
+    """A short baseline rejects an obviously different-length body without hashing."""
+    import modules.fuzzer as fz
+
+    baseline = BaselineSignature(
+        status_code=200, content_length=50, body_hash="unused", probe_path="p"
+    )
+
+    def _boom(_body):  # pragma: no cover - must not be called
+        raise AssertionError("_hash_body should not run on a >100-byte length gap")
+
+    monkeypatch.setattr(fz, "_hash_body", _boom)
+    assert baseline.matches(_resp(200, "a" * 5_000)) is False
+
+
+def test_baseline_short_body_exact_hash_match():
+    """A short baseline still matches on an exact normalized-body hash."""
+    from modules.fuzzer import _hash_body
+
+    body = "<html>catch-all</html>"
+    baseline = BaselineSignature(
+        status_code=200,
+        content_length=len(body),
+        body_hash=_hash_body(body),
+        probe_path="p",
+    )
+    assert baseline.matches(_resp(200, body)) is True
+    assert baseline.matches(_resp(200, "totally different content here")) is False
+
+
+def test_is_directory_hit_accepts_307_and_308():
+    """307/308 redirects are treated as recursable directory hits."""
+    for code in (307, 308):
+        fr = FuzzResult(
+            url="http://example.com/admin",
+            status_code=code,
+            discovered=True,
+            content_length=0,
+            redirect="/admin/",
+        )
+        assert _is_directory_hit(fr) is True
+
+
+def test_is_request_mode_detects_fuzz_in_header_name():
+    """A FUZZ keyword in a header name routes to request mode."""
+    assert is_request_mode("http://example.com", headers={"X-FUZZ": "1"}) is True
+    assert is_request_mode("http://example.com", headers={"X-Real": "v"}) is False
+
+
+@pytest.mark.asyncio
+async def test_fuzz_request_substitutes_header_name():
+    """FUZZ in a header key is substituted before the request is sent."""
+    seen_headers = {}
+
+    def responder(request):
+        seen_headers.update(request.headers)
+        return httpx.Response(200, text="ok")
+
+    with respx.mock:
+        respx.get("http://example.com/").mock(side_effect=responder)
+        result = await fuzz_request(
+            "http://example.com/",
+            ["X-Custom"],
+            headers={"FUZZ": "probe"},
+            threads=1,
+            match_codes=[200],
+        )
+    assert result.scanned == 1
+    assert seen_headers.get("x-custom") == "probe"
+
+
+def test_load_wordlist_utf8_non_ascii(tmp_path):
+    """A wordlist with non-ASCII UTF-8 bytes loads without a decode error."""
+    p = tmp_path / "words.txt"
+    p.write_text("café\nnaïve\n# comment\nadmin\n", encoding="utf-8")
+    words = load_wordlist(str(p))
+    assert "café" in words
+    assert "naïve" in words
+    assert "admin" in words
+    assert all(not w.startswith("#") for w in words)
