@@ -4,6 +4,7 @@ import json
 from contextlib import contextmanager
 from pathlib import Path
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from rich.console import Console
 
 from cli.options import (
@@ -39,11 +40,42 @@ import modules
 from output.reporter import Reporter
 from output.formatter import Formatter
 
-app = typer.Typer(help="Pynzor - Web pentesting CLI")
+APP_NAME = "Pynzor"
+
+
+def get_version() -> str:
+    """Return the installed package version, falling back for source checkouts."""
+    try:
+        return version(APP_NAME)
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+def version_callback(value: bool) -> None:
+    """Print version and exit when --version is provided."""
+    if value:
+        typer.echo(f"{APP_NAME} {get_version()}")
+        raise typer.Exit()
+
+
+app = typer.Typer(help="Pynzor - CTF/lab web recon CLI for authorized testing")
 
 reporter = Reporter()
 formatter = Formatter()
 console = Console()
+
+
+@app.callback()
+def cli(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=version_callback,
+        is_eager=True,
+        help="Show the Pynzor version and exit.",
+    ),
+) -> None:
+    """Fast CTF/lab web reconnaissance for authorized targets."""
 
 
 def _parse_int_list(value: str | None, param: str = "value") -> list[int] | None:
@@ -492,7 +524,7 @@ def ports(
     typer.echo(f"\nReport saved to: {report_file}")
 
 
-@app.command()
+@app.command(name="headers")
 def headers_cmd(
     target: str = target,
     output_dir: str = output_dir,

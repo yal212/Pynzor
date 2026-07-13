@@ -9,314 +9,177 @@
 ╚═╝        ╚═╝   ╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
 ```
 
-**Web pentesting, sharpened.**
+**CTF and lab web recon from one clean Python CLI.**
 
 [![PyPI version](https://img.shields.io/pypi/v/Pynzor?color=blue)](https://pypi.org/project/Pynzor/)
 [![Python](https://img.shields.io/pypi/pyversions/Pynzor)](https://pypi.org/project/Pynzor/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
 [![GitHub Stars](https://img.shields.io/github/stars/yal212/Pynzor?style=social)](https://github.com/yal212/Pynzor/stargazers)
 
-Scan ports · Fuzz directories · Hunt headers · Probe for SQLi & XSS · Enumerate subdomains
+Ports · Directories · Headers · SQLi probes · XSS probes · Subdomains · JSON/HTML reports
 
-[Demo](#demo) · [Install](#install) · [Usage](#usage) · [Commands](#commands) · [Download](#download)
+[Install](#install) · [Quickstart](#quickstart) · [Commands](#commands) · [Demo](#demo) · [Safety](#safety)
 
 </div>
 
 ---
 
-## Demo
+## Why Pynzor
 
-[Watch the demo on YouTube](https://youtu.be/oFKiFmnZOr4?si=Bz5Yv-VGd-BdK28)
+Pynzor is built for fast, authorized web recon in CTFs, training labs, and internal test environments. It gives you the common first-pass checks in one place without turning into an exploitation framework.
 
----
-
-## Features
-
-- **One command, full scan** — run every module against a target in a single invocation
-- **Power-tool parity** — gobuster-style extensions/recursion, ffuf-style `FUZZ`-keyword request fuzzing with match/filter, nmap-style service/version detection
-- **Modular architecture** — each technique is an isolated Python module, easy to extend
-- **Rich terminal output** — color-coded severity levels, live spinners, clean layout
-- **JSON & HTML reports** — export results for sharing or archiving
-- **Async HTTP engine** — `httpx`-powered parallel requests for speed
-- **Bundled wordlists** — works out of the box, no setup required
-- **Fully tested** — `pytest` test suite with async support
-
----
+- **CTF/lab friendly**: quick scans, bundled wordlists, readable terminal output.
+- **Recon coverage**: port checks, directory fuzzing, security headers, SQLi/XSS detection probes, and subdomain enumeration.
+- **Async-first**: `httpx`-powered HTTP workflows with configurable concurrency.
+- **Operator output**: colorized tables for humans plus JSON/HTML reports for notes and handoff.
+- **Safe by design**: detection and probing only. No dumping, shelling, persistence, or destructive payloads.
 
 ## Install
 
-### pipx (recommended for CLI users)
-
-[pipx](https://pipx.pypa.io/) installs Pynzor into its own isolated venv, keeping your system Python clean:
+Use `pipx` for an isolated CLI install:
 
 ```bash
 pipx install Pynzor
+Pynzor --help
 ```
 
-### pip
+Install with `pip` if you prefer managing the environment yourself:
 
 ```bash
 pip install Pynzor
 ```
 
-### From source
+Run from source:
 
 ```bash
 git clone https://github.com/yal212/Pynzor.git
 cd Pynzor
-pip install -e .
-```
-
-### uv
-
-```bash
 uv sync
 uv run Pynzor --help
 ```
 
----
+## Quickstart
 
-## Download
-
-No Python required — grab a prebuilt binary from [GitHub Releases](https://github.com/yal212/Pynzor/releases/latest):
-
-| Platform | File | Run |
-|----------|------|-----|
-| Windows  | `Pynzor.exe` | `Pynzor.exe --help` |
-| macOS    | `Pynzor-macos` | `chmod +x Pynzor-macos && ./Pynzor-macos --help` |
-| Linux    | `Pynzor-linux` | `chmod +x Pynzor-linux && ./Pynzor-linux --help` |
-
-> **macOS note:** If blocked by Gatekeeper, run `xattr -d com.apple.quarantine ./Pynzor-macos` or allow it via System Settings → Privacy & Security.
-
----
-
-## Usage
-
-### Full scan with HTML report
+Run a full recon pass and write reports:
 
 ```bash
-Pynzor scan -t https://example.com -f html
+Pynzor scan -t https://target.lab -f both
 ```
 
-<details>
-<summary>Sample output</summary>
-
-```
-Running full scan on https://example.com
-
-╭─ Port Scanner ─╮
-╰────────────────╯
- Port   Status   Service     Latency
- 80     open     http        0.042s
- 443    open     https       0.039s
- 22     closed                0.012s
-
-╭─ Directory Fuzzer ─╮
-╰────────────────────╯
- URL                         Status   Size
- https://example.com/admin   401      92
- https://example.com/api     200      4213
-Found 2 directories
-
-╭─ Security Headers ─╮
-╰────────────────────╯
- Header                      Status   Risk
- Strict-Transport-Security   ✓        high
- Content-Security-Policy     ✗        high
-Score: 65/100 (Grade: D)
-
-JSON report saved to: reports/scan_20260421_141203.json
-HTML report saved to: reports/scan_20260421_141203.html
-```
-</details>
-
-### Directory fuzzing
+Check exposed ports with service detection:
 
 ```bash
-Pynzor fuzz -t https://example.com --wordlist ./mylist.txt --threads 30
-
-# gobuster-style: append file extensions to every word, and recurse into hits
-Pynzor fuzz -t https://example.com -w ./mylist.txt -x php,html,txt
-Pynzor fuzz -t https://example.com -w ./mylist.txt -x php --recursive --depth 2
+Pynzor ports -t target.lab -p 22,80,443,8000-9000 -sV -oN notes/ports.txt
 ```
 
-<details>
-<summary>Sample output</summary>
-
-```
-Fuzzing directories on https://example.com
-! SPA/catch-all detected (probe '/pynzor-baseline-4f3a...' returned 200,
-  4213 bytes). Filtering matches.
- URL                         Status   Size
- https://example.com/admin   401      92
- https://example.com/api/v1  200      1842
-Found 2 directories
-Filtered 128 paths matching catch-all baseline (use --no-baseline to disable)
-```
-
-Baseline filtering protects against SPAs and reverse proxies that return
-`200 OK` + the same body for every path. Use `--no-baseline` to see raw
-results. `-x/--extensions` expands each word into `word`, `word.php`, … (the
-config `fuzzer.extensions` list is the default); `-r/--recursive` re-fuzzes
-discovered directories up to `--depth`.
-</details>
-
-### Request fuzzing (ffuf-style)
-
-Put the `FUZZ` keyword anywhere in the URL, a header value, or the request
-body — Pynzor substitutes each wordlist entry and matches/filters the
-responses. A non-GET method or a `-d` body switches `fuzz` into this mode
-automatically.
+Fuzz web content with the bundled directory wordlist:
 
 ```bash
-# Brute a login form: FUZZ the password field, keep only non-401 responses
-Pynzor fuzz -t https://target/admin/login -X POST \
+Pynzor fuzz -t https://target.lab --threads 30
+```
+
+Use ffuf-style request fuzzing with the `FUZZ` keyword:
+
+```bash
+Pynzor fuzz -t https://target.lab/login -X POST \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  -d 'password=FUZZ' -w ~/wordlists/rockyou.txt -fc 401
-
-# FUZZ in the path; keep 200s only
-Pynzor fuzz -t https://target/FUZZ -w ./mylist.txt -mc 200
+  -d 'username=admin&password=FUZZ' \
+  -w ./wordlists/passwords.txt -fc 401
 ```
 
-<details>
-<summary>Sample output</summary>
-
-```
-Fuzzing requests on https://target/admin/login
- Word        Status   Size   Words   Lines
- hunter2      200      512     48      21
-Found 1 matching responses
-```
-
-Matchers/filters: `-mc` keep status codes, `-fc` drop status codes, `-fs`
-drop by exact byte size, `-fw` by word count, `-fl` by line count. Filters
-win over matchers, mirroring ffuf.
-</details>
-
-### Port scan & service detection (nmap-style)
+Review a saved JSON report:
 
 ```bash
-# Connect-scan a port range, grab banners, detect versions, write a text report
-Pynzor ports -t scanme.nmap.org -p 1-1000 -sV -oN scan.txt
-Pynzor ports -t 172.67.144.163 -p 22,80,443,8080
+Pynzor report docs/samples/sample_report.json
 ```
-
-<details>
-<summary>Sample output</summary>
-
-```
-Scanning ports on scanme.nmap.org
- Port   Status   Service   Version           Latency
- 22     open     SSH       OpenSSH 6.6.1p1   0.232s
- 80     open     HTTP      Apache 2.4.7      0.220s
- 443    closed   HTTPS                       0.243s
-Plain-text report saved to: scan.txt
-```
-
-`-sV` grabs the connect banner (or the HTTP `Server` header) on open ports and
-parses common products/versions. `-oN` writes an nmap-style plain-text report.
-</details>
-
-### Security header analysis
-
-```bash
-Pynzor headers -t https://example.com
-```
-
-<details>
-<summary>Sample output</summary>
-
-```
-Analyzing headers on https://example.com
- Header                      Status   Risk
- Strict-Transport-Security   ✓        high
- Content-Security-Policy     ✗        high
- X-Frame-Options             ✓        high
- X-Content-Type-Options      ✓        medium
- Referrer-Policy             ✗        medium
-Score: 70/100 (Grade: C)
-Missing: Content-Security-Policy, Referrer-Policy
-```
-</details>
-
-### Subdomain enumeration
-
-```bash
-Pynzor subdomain -t https://example.com
-```
-
-<details>
-<summary>Sample output</summary>
-
-```
-Enumerating subdomains of example.com
-! Wildcard DNS detected → 203.0.113.42. Subdomains resolving to these IPs
-  are filtered (use --include-wildcard to show them).
- Subdomain                 Status
- api.example.com           responded
- mail.example.com          responded
-Found 2 subdomains
-Filtered 87 subdomains matching wildcard DNS
-```
-
-Wildcard detection probes two random subdomains first; if both resolve to
-the same IP set, matching wordlist hits are filtered to avoid false
-positives.
-</details>
-
-### SQL injection probe
-
-```bash
-Pynzor sqli -t "https://example.com/item?id=1"
-```
-
-### XSS detection
-
-```bash
-Pynzor xss -t https://example.com -v
-```
-
-### Sample reports
-
-- [Sample JSON report](docs/samples/sample_report.json)
-- [Sample HTML report](docs/samples/sample_report.html) — open in a browser
-
----
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `scan` | Full scan — run all modules |
-| `ports` | Port scan with optional service/version detection (`-sV`, `-oN`) |
-| `fuzz` | Directory/file fuzzing (`-x`, `-r`) or `FUZZ`-keyword request fuzzing (`-X`, `-d`, `-mc`/`-fc`/`-fs`) |
-| `headers` | Security header analysis |
-| `sqli` | SQL injection probe |
-| `xss` | Reflected XSS detection |
-| `subdomain` | Subdomain enumeration |
-| `report` | Re-generate report from JSON |
+| Command | Purpose |
+|---------|---------|
+| `Pynzor scan` | Run the full recon workflow against a target. |
+| `Pynzor ports` | Scan TCP ports with optional service/version detection. |
+| `Pynzor fuzz` | Run directory fuzzing or `FUZZ`-keyword request fuzzing. |
+| `Pynzor headers` | Score common security headers. |
+| `Pynzor sqli` | Probe URL parameters for SQL injection indicators. |
+| `Pynzor xss` | Probe reflected XSS indicators. |
+| `Pynzor subdomain` | Enumerate subdomains from a wordlist. |
+| `Pynzor report` | Print a saved JSON report. |
 
----
+Global helpers:
+
+```bash
+Pynzor --help
+Pynzor --version
+```
+
+## Reports
+
+Pynzor writes reports to `./reports` by default.
+
+```bash
+Pynzor scan -t https://target.lab -f json
+Pynzor scan -t https://target.lab -f html
+Pynzor scan -t https://target.lab -f both
+```
+
+Sample outputs:
+
+- [Sample JSON report](docs/samples/sample_report.json)
+- [Sample HTML report](docs/samples/sample_report.html)
+
+## Demo
+
+The tracked terminal walkthrough is in [docs/demo/terminal-demo.md](docs/demo/terminal-demo.md). It shows the expected launch flow without requiring public targets or destructive actions.
+
+Video demo:
+
+- [Watch the demo on YouTube](https://youtu.be/oFKiFmnZOr4?si=Bz5Yv-VGd-BdK28)
 
 ## Configuration
 
-Source installs include a `config.yaml` for fine-tuning:
+The packaged default config lives at `cli/config.yaml`; source installs also include the root `config.yaml` for reference. Use `--config` to point at a custom file.
 
-- HTTP timeout, retries, user-agent string
-- Rate limiting and redirect behavior
-- Output format and directory
-- Port lists, wordlist paths, thread counts
+Configurable areas:
 
----
+- HTTP timeout, retries, user-agent, redirect behavior, and SSL verification.
+- Scanner ports, timeouts, service detection, and concurrency.
+- Fuzzer status codes, request match/filter rules, extensions, recursion depth, and wordlists.
+- Subdomain wordlist and concurrency.
+- Output format and report directory.
 
-## Disclaimer
+## Download Binaries
 
-Pynzor is for **authorized testing only**. Only use it on systems you own or have explicit written permission to test. Unauthorized use is illegal and unethical.
+Tagged GitHub releases build PyInstaller binaries for Windows, macOS, and Linux:
 
----
+| Platform | File | Run |
+|----------|------|-----|
+| Windows | `Pynzor.exe` | `Pynzor.exe --help` |
+| macOS | `Pynzor-macos` | `chmod +x Pynzor-macos && ./Pynzor-macos --help` |
+| Linux | `Pynzor-linux` | `chmod +x Pynzor-linux && ./Pynzor-linux --help` |
 
-<div align="center">
+If macOS blocks the binary, allow it from System Settings or run:
 
-MIT License — see [LICENSE](LICENSE.md) · Made by [yal212](https://github.com/yal212)
+```bash
+xattr -d com.apple.quarantine ./Pynzor-macos
+```
 
-</div>
+## Development
+
+```bash
+uv sync
+uv run pytest
+uv run Pynzor --help
+```
+
+The project targets Python 3.10+ and keeps dependencies intentionally small.
+
+## Safety
+
+Pynzor is for authorized testing only. Use it only on systems you own, CTF/lab targets you are allowed to test, or environments where you have explicit written permission. Unauthorized scanning or probing can be illegal and harmful.
+
+Pynzor performs detection-oriented probes and recon. It does not include destructive payloads, exploit chains, credential dumping, persistence, or data exfiltration features.
+
+## License
+
+MIT License. See [LICENSE.md](LICENSE.md).

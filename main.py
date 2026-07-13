@@ -1,6 +1,6 @@
-from enum import IntEnum
-import typer
-from cli.commands import app
+import sys
+
+from cli.commands import app, get_version
 
 BANNER = r"""
 ██████╗ ██╗   ██╗███╗   ██╗███████╗ ██████╗ ██████╗ 
@@ -13,8 +13,9 @@ BANNER = r"""
 
 def main():
     """Print the banner and launch the Typer CLI application."""
-    print(BANNER)
-    print("Pynzor CLI v.10\n")
+    if "--version" not in sys.argv[1:]:
+        print(BANNER)
+        print(f"Pynzor CLI v{get_version()}\n")
     app()
 
 if __name__ == "__main__":
