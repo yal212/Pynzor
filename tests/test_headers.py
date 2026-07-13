@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from pynzor.modules.headers import analyze_headers, HeaderResult
+from pynzor.modules.headers import analyze_headers
 
 
 @pytest.mark.asyncio
@@ -47,9 +47,7 @@ async def test_analyze_headers_with_security_headers():
         "x-xss-protection": "1; mode=block",
     }
     with respx.mock:
-        respx.get("http://example.com/").mock(
-            return_value=httpx.Response(200, headers=headers)
-        )
+        respx.get("http://example.com/").mock(return_value=httpx.Response(200, headers=headers))
         result = await analyze_headers("http://example.com/")
     assert result.score >= 90
     assert result.grade == "A"

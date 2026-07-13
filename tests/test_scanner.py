@@ -100,6 +100,7 @@ class _FakeWriter:
 @pytest.mark.asyncio
 async def test_grab_banner_reads_service_banner(monkeypatch):
     """grab_banner returns the banner text read from a connected socket."""
+
     async def fake_open_connection(host, port, ssl=None):
         return _FakeReader(b"SSH-2.0-OpenSSH_8.9p1\r\n"), _FakeWriter()
 
@@ -112,6 +113,7 @@ async def test_grab_banner_reads_service_banner(monkeypatch):
 @pytest.mark.asyncio
 async def test_grab_banner_connection_failure_returns_none(monkeypatch):
     """grab_banner returns None when the connection cannot be established."""
+
     async def fake_open_connection(host, port, ssl=None):
         raise OSError("connection refused")
 
@@ -156,6 +158,7 @@ async def test_grab_banner_plain_host_header_unbracketed(monkeypatch):
 @pytest.mark.asyncio
 async def test_grab_banner_read_error_returns_none(monkeypatch):
     """A read/reset failure after connecting returns None (port is not dropped)."""
+
     class _RaisingReader:
         async def read(self, n: int) -> bytes:
             raise ConnectionResetError("connection reset by peer")
@@ -170,6 +173,7 @@ async def test_grab_banner_read_error_returns_none(monkeypatch):
 @pytest.mark.asyncio
 async def test_scan_service_detection_populates_version(monkeypatch):
     """scan with service_detection populates product/version from the grabbed banner."""
+
     async def fake_scan_port(host, port, timeout=3.0):
         return scanner.PortResult(port=port, status="open", service="SSH", latency=0.01)
 
@@ -194,8 +198,12 @@ def test_format_nmap_text_layout():
         end_time=datetime(2026, 5, 29, 12, 0, 1),
         ports=[
             scanner.PortResult(
-                port=22, status="open", service="SSH", latency=0.01,
-                product="OpenSSH", version="9.6p1",
+                port=22,
+                status="open",
+                service="SSH",
+                latency=0.01,
+                product="OpenSSH",
+                version="9.6p1",
             )
         ],
     )

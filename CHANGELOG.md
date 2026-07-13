@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release: async `httpx`-powered web recon CLI with colorized terminal
   output, `pipx`/`pip` install, and a bundled default configuration.
 
-[Unreleased]: https://github.com/yal212/Pynzor/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/yal212/Pynzor/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/yal212/Pynzor/releases/tag/v1.1.0
 [1.0.8]: https://github.com/yal212/Pynzor/releases/tag/v1.0.8
 [1.0.0]: https://github.com/yal212/Pynzor/releases/tag/v1.0.0

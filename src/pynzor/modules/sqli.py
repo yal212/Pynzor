@@ -235,9 +235,9 @@ async def _test_payload_post(
     payload: str,
 ) -> Optional[SQLiVulnerability]:
     """Error-based SQLi detection via POST form submission."""
-    for field in field_names:
+    for field_name in field_names:
         data = {f: "1" for f in field_names}
-        data[field] = payload
+        data[field_name] = payload
         response = await client.post(action, data=data)
         if response.error:
             continue
@@ -248,7 +248,7 @@ async def _test_payload_post(
                     url=action,
                     payload=payload,
                     type="error-based",
-                    evidence=f"Error signature via POST field '{field}': {sig}",
+                    evidence=f"Error signature via POST field '{field_name}': {sig}",
                 )
     return None
 
@@ -315,9 +315,7 @@ async def probe_sqli(
             for form in forms:
                 async with semaphore:
                     tested += 1
-                    vuln = await _test_payload_post(
-                        client, form["action"], form["fields"], payload
-                    )
+                    vuln = await _test_payload_post(client, form["action"], form["fields"], payload)
                 if vuln:
                     return vuln
             return None
@@ -343,7 +341,10 @@ async def probe_sqli(
         bool_tasks = [limited_boolean_blind(p) for p in param_names]
 
         all_results = await asyncio.gather(
-            *get_tasks, *post_tasks, *time_tasks, *bool_tasks,
+            *get_tasks,
+            *post_tasks,
+            *time_tasks,
+            *bool_tasks,
             return_exceptions=True,
         )
 

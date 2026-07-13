@@ -48,9 +48,7 @@ def _build_resolver() -> dns.resolver.Resolver:
     return resolver
 
 
-async def detect_wildcard(
-    resolver: dns.resolver.Resolver, root_domain: str
-) -> Optional[set[str]]:
+async def detect_wildcard(resolver: dns.resolver.Resolver, root_domain: str) -> Optional[set[str]]:
     """Probe for wildcard DNS by resolving two random subdomains.
 
     Returns the set of IPs the wildcard resolves to, or None if no wildcard.
@@ -106,9 +104,7 @@ async def enumerate_subdomains(
         A :class:`SubdomainScanResult` with discovered subdomains and stats.
     """
     start_time = datetime.now()
-    result = SubdomainScanResult(
-        target=target, start_time=start_time, end_time=start_time
-    )
+    result = SubdomainScanResult(target=target, start_time=start_time, end_time=start_time)
 
     root_domain = extract_root_domain(extract_domain(target))
 

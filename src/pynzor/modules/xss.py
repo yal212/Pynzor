@@ -194,9 +194,9 @@ async def _test_payload_post(
     payload: str,
 ) -> Optional[XSSVulnerability]:
     """POST payload into each form field and check the response."""
-    for field in field_names:
+    for field_name in field_names:
         data = {f: "test" for f in field_names}
-        data[field] = payload
+        data[field_name] = payload
         response = await client.post(action, data=data)
         if response.error:
             continue
@@ -208,14 +208,14 @@ async def _test_payload_post(
                 url=action,
                 payload=payload,
                 type="reflected",
-                evidence=f"Payload reflected via POST field '{field}'",
+                evidence=f"Payload reflected via POST field '{field_name}'",
             )
         if _check_dom_xss(html):
             return XSSVulnerability(
                 url=action,
                 payload=payload,
                 type="dom",
-                evidence=f"DOM XSS sink detected via POST field '{field}'",
+                evidence=f"DOM XSS sink detected via POST field '{field_name}'",
             )
     return None
 
@@ -283,9 +283,7 @@ async def detect_xss(
             for form in forms:
                 async with semaphore:
                     tested += 1
-                    vuln = await _test_payload_post(
-                        client, form["action"], form["fields"], payload
-                    )
+                    vuln = await _test_payload_post(client, form["action"], form["fields"], payload)
                 if vuln:
                     return vuln
             return None

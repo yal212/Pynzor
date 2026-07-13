@@ -9,7 +9,6 @@ from pynzor.modules.sqli import (
     _extract_forms,
     probe_sqli,
     SQLiVulnerability,
-    TIME_BASED_THRESHOLD,
 )
 from pynzor.utils.http_client import HTTPClient, ClientConfig
 
@@ -74,6 +73,7 @@ async def test_probe_sqli_finds_vulnerability():
 
 # --- New error signature tests ---
 
+
 @pytest.mark.asyncio
 async def test_mssql_error_signature_detected():
     """_test_payload flags error-based SQLi on an MSSQL error signature."""
@@ -100,7 +100,9 @@ async def test_sqlite_error_signature_detected():
     url = f"http://example.com/?id={payload}"
     with respx.mock:
         respx.get(url).mock(
-            return_value=httpx.Response(200, text="sqlite3.OperationalError: near '1': syntax error")
+            return_value=httpx.Response(
+                200, text="sqlite3.OperationalError: near '1': syntax error"
+            )
         )
         async with client:
             result = await _test_payload(client, "http://example.com/", "id", payload)
@@ -109,6 +111,7 @@ async def test_sqlite_error_signature_detected():
 
 
 # --- Time-based blind SQLi tests ---
+
 
 @pytest.mark.asyncio
 async def test_time_based_blind_detected():
@@ -134,7 +137,7 @@ async def test_time_based_blind_detected():
         )
         async with client:
             # Patch latency directly on the first response
-            from unittest.mock import patch, AsyncMock
+            from unittest.mock import patch
             from pynzor.utils.http_client import Response as HttpResponse
 
             async def fake_get(url):
@@ -163,9 +166,7 @@ async def test_time_based_blind_not_triggered_fast_response():
         from pynzor.utils.http_client import Response as HttpResponse
 
         async def fast_get(url):
-            return HttpResponse(
-                url=url, status_code=200, headers={}, body="ok", latency=0.1
-            )
+            return HttpResponse(url=url, status_code=200, headers={}, body="ok", latency=0.1)
 
         with patch.object(client, "get", side_effect=fast_get):
             result = await _test_time_based(client, "http://example.com/", "id")
@@ -173,6 +174,7 @@ async def test_time_based_blind_not_triggered_fast_response():
 
 
 # --- Boolean-based blind SQLi tests ---
+
 
 @pytest.mark.asyncio
 async def test_boolean_blind_detected():
@@ -193,9 +195,7 @@ async def test_boolean_blind_detected():
                 body = "<html><body>Welcome back, admin! You have 5 messages.</body></html>"
             else:
                 body = "<html><body>No results.</body></html>"
-            return HttpResponse(
-                url=url, status_code=200, headers={}, body=body, latency=0.1
-            )
+            return HttpResponse(url=url, status_code=200, headers={}, body=body, latency=0.1)
 
         with patch.object(client, "get", side_effect=toggling_get):
             result = await _test_boolean_blind(client, "http://example.com/", "id")
@@ -224,6 +224,7 @@ async def test_boolean_blind_not_triggered_identical_responses():
 
 
 # --- POST form scanning tests ---
+
 
 def test_extract_forms_basic():
     """_extract_forms parses a form's action, method, and field names."""
@@ -286,9 +287,7 @@ async def test_probe_sqli_scans_post_form():
         )
         # POST triggers SQL error
         respx.post("http://example.com/login").mock(
-            return_value=httpx.Response(
-                200, text="mysql_fetch_array() error"
-            )
+            return_value=httpx.Response(200, text="mysql_fetch_array() error")
         )
         result = await probe_sqli("http://example.com/login", max_payloads=2, threads=2)
     assert result.vulnerable

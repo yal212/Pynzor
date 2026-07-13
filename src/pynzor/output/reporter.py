@@ -86,6 +86,7 @@ class Reporter:
             output_path: Destination ``.html`` path (parent dirs are created).
         """
         from jinja2 import Environment, FileSystemLoader
+
         serialized = serialize_result(data)
         summary = generate_scan_summary(serialized)
         templates_dir = Path(__file__).parent / "templates"

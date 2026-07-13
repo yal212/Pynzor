@@ -234,9 +234,7 @@ def scan(
 
         formatter.print_header("Port Scanner")
         with spinner("Scanning ports", not no_color):
-            scanner_result = await modules.scan(
-                domain, ports=config["scanner"]["common_ports"]
-            )
+            scanner_result = await modules.scan(domain, ports=config["scanner"]["common_ports"])
         open_ports = [p for p in scanner_result.ports if p.status == "open"]
         modules_out["scanner"] = {
             "ports": [
@@ -246,8 +244,7 @@ def scan(
             "open_count": len(open_ports),
         }
         findings.extend(
-            {"module": "ports", "port": p.port, "service": p.service}
-            for p in open_ports
+            {"module": "ports", "port": p.port, "service": p.service} for p in open_ports
         )
         formatter.print_scanner_results(scanner_result)
 
@@ -284,29 +281,25 @@ def scan(
 
         formatter.print_header("SQL Injection")
         with spinner("Probing for SQL injection", not no_color):
-            sqli_result = await modules.probe(normalized, None)
+            sqli_result = await modules.probe(normalized)
         modules_out["sqli"] = {
             "vulnerable": sqli_result.vulnerable,
             "payload": sqli_result.payload,
         }
         if sqli_result.vulnerable:
-            findings.append(
-                {"module": "sqli", "payload": sqli_result.payload, "vulnerable": True}
-            )
+            findings.append({"module": "sqli", "payload": sqli_result.payload, "vulnerable": True})
             severities.append("high")
         formatter.print_sqli_results(sqli_result)
 
         formatter.print_header("XSS Detection")
         with spinner("Detecting XSS", not no_color):
-            xss_result = await modules.detect(normalized, None)
+            xss_result = await modules.detect(normalized)
         modules_out["xss"] = {
             "vulnerable": xss_result.vulnerable,
             "payload": xss_result.payload,
         }
         if xss_result.vulnerable:
-            findings.append(
-                {"module": "xss", "payload": xss_result.payload, "vulnerable": True}
-            )
+            findings.append({"module": "xss", "payload": xss_result.payload, "vulnerable": True})
             severities.append("high")
         formatter.print_xss_results(xss_result)
 
@@ -351,7 +344,7 @@ def scan(
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True, parents=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if format in ("json", "both"):
         report_file = output_path / f"scan_{timestamp}.json"
         reporter.save(results, report_file)
@@ -389,9 +382,7 @@ def fuzz(
     fuzzer_cfg = config.get("fuzzer", {})
 
     headers = _parse_headers(header)
-    request_mode = modules.is_request_mode(
-        target, headers=headers, data=data, method=method
-    )
+    request_mode = modules.is_request_mode(target, headers=headers, data=data, method=method)
 
     # FUZZ-mode keeps the keyword-bearing target intact (only ensuring a
     # scheme so requests resolve); directory-mode normalizes to a clean base URL.
@@ -593,7 +584,7 @@ def headers_cmd(
     config_file: Path = config_file,
 ):
     """Security header analysis"""
-    config = load_config(config_file)
+    load_config(config_file)
     formatter.no_color = no_color
 
     normalized = normalize_url(target)
@@ -611,9 +602,7 @@ def headers_cmd(
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True, parents=True)
-    report_file = (
-        output_path / f"headers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    )
+    report_file = output_path / f"headers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
         build_report(
             module="headers",
@@ -644,7 +633,7 @@ def sqli(
     config_file: Path = config_file,
 ):
     """SQL injection probe"""
-    config = load_config(config_file)
+    load_config(config_file)
     formatter.no_color = no_color
 
     normalized = normalize_url(target)
@@ -696,7 +685,7 @@ def xss(
     config_file: Path = config_file,
 ):
     """Reflected XSS detection"""
-    config = load_config(config_file)
+    load_config(config_file)
     formatter.no_color = no_color
 
     normalized = normalize_url(target)
@@ -773,9 +762,7 @@ def subdomain(
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True, parents=True)
-    report_file = (
-        output_path / f"subdomain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    )
+    report_file = output_path / f"subdomain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
         build_report(
             module="subdomain",
@@ -803,7 +790,6 @@ def report(
     """Re-generate report from JSON"""
     data = reporter.load(input_file)
     formatter.print_header(f"Report: {input_file.name}")
-    import json
     from rich.console import Console
 
     console = Console()

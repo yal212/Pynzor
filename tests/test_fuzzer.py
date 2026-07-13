@@ -43,9 +43,7 @@ async def test_fuzz_directory_finds_200_path():
 @pytest.mark.asyncio
 async def test_fuzz_directory_empty_wordlist():
     """An empty wordlist scans nothing and finds nothing."""
-    result = await fuzz_directory(
-        "http://example.com", [], threads=2, use_baseline=False
-    )
+    result = await fuzz_directory("http://example.com", [], threads=2, use_baseline=False)
     assert result.scanned == 0
     assert result.found == []
 
@@ -155,9 +153,7 @@ def test_expand_candidates_no_extensions():
 async def test_fuzz_directory_extensions_expand():
     """Directory fuzzing tries each extension and reports the matching variant."""
     with respx.mock:
-        respx.get("http://example.com/admin").mock(
-            return_value=httpx.Response(404, text="nope")
-        )
+        respx.get("http://example.com/admin").mock(return_value=httpx.Response(404, text="nope"))
         respx.get("http://example.com/admin.php").mock(
             return_value=httpx.Response(200, text="panel")
         )
@@ -183,9 +179,7 @@ async def test_fuzz_directory_recursion_descends_one_level():
         respx.get("http://example.com/admin").mock(
             return_value=httpx.Response(200, text="dir index")
         )
-        respx.get("http://example.com/login").mock(
-            return_value=httpx.Response(404, text="nope")
-        )
+        respx.get("http://example.com/login").mock(return_value=httpx.Response(404, text="nope"))
         respx.get("http://example.com/admin/admin").mock(
             return_value=httpx.Response(404, text="nope")
         )
@@ -209,9 +203,14 @@ async def test_fuzz_directory_recursion_descends_one_level():
 @pytest.mark.asyncio
 async def test_fuzz_request_post_body_substitution():
     """Request fuzzing substitutes FUZZ into a POST body and matches the right word."""
+
     def responder(request):
         body = request.content.decode()
-        return httpx.Response(200, text="welcome") if "password=admin" in body else httpx.Response(401, text="denied")
+        return (
+            httpx.Response(200, text="welcome")
+            if "password=admin" in body
+            else httpx.Response(401, text="denied")
+        )
 
     with respx.mock:
         respx.post("http://example.com/login").mock(side_effect=responder)
@@ -234,6 +233,7 @@ async def test_fuzz_request_post_body_substitution():
 @pytest.mark.asyncio
 async def test_fuzz_request_filter_codes():
     """filter_codes excludes responses with the filtered status code."""
+
     def responder(request):
         body = request.content.decode()
         return httpx.Response(200, text="x") if "v=ok" in body else httpx.Response(403, text="x")
@@ -254,9 +254,14 @@ async def test_fuzz_request_filter_codes():
 @pytest.mark.asyncio
 async def test_fuzz_request_filter_size():
     """filter_size excludes responses whose body length matches the filtered size."""
+
     def responder(request):
         body = request.content.decode()
-        return httpx.Response(200, text="MUCH LONGER BODY") if "id=2" in body else httpx.Response(200, text="small")
+        return (
+            httpx.Response(200, text="MUCH LONGER BODY")
+            if "id=2" in body
+            else httpx.Response(200, text="small")
+        )
 
     with respx.mock:
         respx.post("http://example.com/").mock(side_effect=responder)
@@ -276,12 +281,8 @@ async def test_fuzz_request_filter_size():
 async def test_fuzz_request_url_keyword_substitution():
     """Request fuzzing substitutes FUZZ into the URL path and matches the right word."""
     with respx.mock:
-        respx.get("http://example.com/admin").mock(
-            return_value=httpx.Response(200, text="ok")
-        )
-        respx.get("http://example.com/secret").mock(
-            return_value=httpx.Response(404, text="no")
-        )
+        respx.get("http://example.com/admin").mock(return_value=httpx.Response(200, text="ok"))
+        respx.get("http://example.com/secret").mock(return_value=httpx.Response(404, text="no"))
         result = await fuzz_request(
             "http://example.com/FUZZ",
             ["admin", "secret"],
@@ -300,9 +301,7 @@ async def test_fuzz_request_does_not_follow_redirects():
         respx.get("http://example.com/old").mock(
             return_value=httpx.Response(301, headers={"Location": "/new"})
         )
-        respx.get("http://example.com/keep").mock(
-            return_value=httpx.Response(404, text="no")
-        )
+        respx.get("http://example.com/keep").mock(return_value=httpx.Response(404, text="no"))
         result = await fuzz_request(
             "http://example.com/FUZZ",
             ["old", "keep"],
@@ -384,9 +383,7 @@ async def test_fuzz_directory_recursion_stays_in_scope():
         respx.get("http://evil.com/admin").mock(
             return_value=httpx.Response(200, text="external dir")
         )
-        respx.get("http://example.com/login").mock(
-            return_value=httpx.Response(404, text="no")
-        )
+        respx.get("http://example.com/login").mock(return_value=httpx.Response(404, text="no"))
         # Tripwire: if recursion leaked off-host, this would be requested.
         evil_child = respx.get("http://evil.com/admin/login").mock(
             return_value=httpx.Response(200, text="leaked")

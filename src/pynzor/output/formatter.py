@@ -1,7 +1,6 @@
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.syntax import Syntax
 from rich.markup import escape
 from rich.text import Text
 from typing import Any
@@ -41,13 +40,10 @@ class Formatter:
         shown = [p for p in result.ports if p.status != "closed"]
         hidden = len(result.ports) - len(shown)
         show_version = any(
-            getattr(p, "product", None) or getattr(p, "version", None)
-            for p in shown
+            getattr(p, "product", None) or getattr(p, "version", None) for p in shown
         )
 
-        table = Table(
-            title="Port Scan Results", show_header=True, header_style="bold magenta"
-        )
+        table = Table(title="Port Scan Results", show_header=True, header_style="bold magenta")
         table.add_column("Port", style="cyan", justify="right")
         table.add_column("Status", justify="center")
         table.add_column("Service", style="blue")
@@ -58,11 +54,7 @@ class Formatter:
         for port in shown:
             status = port.status
             status_style = (
-                "green"
-                if status == "open"
-                else "red"
-                if status == "closed"
-                else "yellow"
+                "green" if status == "open" else "red" if status == "closed" else "yellow"
             )
             row = [
                 str(port.port),
@@ -157,16 +149,8 @@ class Formatter:
         missing = []
         for h in result.analysis:
             status_icon = "[green]✓[/green]" if h.present else "[red]✗[/red]"
-            risk_style = (
-                "red"
-                if h.risk == "high"
-                else "yellow"
-                if h.risk == "medium"
-                else "green"
-            )
-            table.add_row(
-                h.header, status_icon, f"[{risk_style}]{h.risk}[/{risk_style}]"
-            )
+            risk_style = "red" if h.risk == "high" else "yellow" if h.risk == "medium" else "green"
+            table.add_row(h.header, status_icon, f"[{risk_style}]{h.risk}[/{risk_style}]")
             if not h.present:
                 missing.append(h.header)
 
@@ -178,7 +162,7 @@ class Formatter:
     def print_sqli_results(self, result) -> None:
         """Print the SQL injection verdict and triggering payload if vulnerable."""
         if result.vulnerable:
-            console.print(f"[red]VULNERABLE to SQL Injection![/red]")
+            console.print("[red]VULNERABLE to SQL Injection![/red]")
             console.print(f"Payload: {result.payload}")
         else:
             console.print("[green]No SQL injection vulnerabilities found[/green]")
@@ -186,7 +170,7 @@ class Formatter:
     def print_xss_results(self, result) -> None:
         """Print the XSS verdict and triggering payload if vulnerable."""
         if result.vulnerable:
-            console.print(f"[red]VULNERABLE to XSS![/red]")
+            console.print("[red]VULNERABLE to XSS![/red]")
             console.print(f"Payload: {result.payload}")
         else:
             console.print("[green]No XSS vulnerabilities found[/green]")
@@ -201,9 +185,7 @@ class Formatter:
                 "(use --include-wildcard to show them)."
             )
 
-        table = Table(
-            title="Subdomain Enumeration", show_header=True, header_style="bold magenta"
-        )
+        table = Table(title="Subdomain Enumeration", show_header=True, header_style="bold magenta")
         table.add_column("Subdomain", style="cyan")
         table.add_column("Status", style="yellow")
 
@@ -215,9 +197,7 @@ class Formatter:
         console.print(f"Found {len(result.subdomains)} subdomains")
         filtered = getattr(result, "wildcard_filtered", 0)
         if filtered:
-            console.print(
-                f"[dim]Filtered {filtered} subdomains matching wildcard DNS[/dim]"
-            )
+            console.print(f"[dim]Filtered {filtered} subdomains matching wildcard DNS[/dim]")
 
 
 def format_title(text: str, style: str = "bold cyan") -> Text:
@@ -268,9 +248,7 @@ def format_ports_table(ports: list[dict]) -> Table:
     Returns:
         A populated :class:`rich.table.Table`.
     """
-    table = Table(
-        title="Port Scan Results", show_header=True, header_style="bold magenta"
-    )
+    table = Table(title="Port Scan Results", show_header=True, header_style="bold magenta")
     table.add_column("Port", style="cyan", justify="right")
     table.add_column("Status", justify="center")
     table.add_column("Service", style="blue")
@@ -278,9 +256,7 @@ def format_ports_table(ports: list[dict]) -> Table:
 
     for port in ports:
         status = port.get("status", "unknown")
-        status_style = (
-            "green" if status == "open" else "red" if status == "closed" else "yellow"
-        )
+        status_style = "green" if status == "open" else "red" if status == "closed" else "yellow"
         table.add_row(
             str(port.get("port", "")),
             f"[{status_style}]{status}[/{status_style}]",
@@ -301,9 +277,7 @@ def format_directories_table(dirs: list[dict]) -> Table:
     Returns:
         A populated :class:`rich.table.Table`.
     """
-    table = Table(
-        title="Directory Fuzz Results", show_header=True, header_style="bold magenta"
-    )
+    table = Table(title="Directory Fuzz Results", show_header=True, header_style="bold magenta")
     table.add_column("URL", style="cyan")
     table.add_column("Status", justify="center", style="blue")
     table.add_column("Size", justify="right", style="dim")
@@ -337,9 +311,7 @@ def format_headers_table(headers: list[dict]) -> Table:
     Returns:
         A populated :class:`rich.table.Table`.
     """
-    table = Table(
-        title="Security Headers Analysis", show_header=True, header_style="bold magenta"
-    )
+    table = Table(title="Security Headers Analysis", show_header=True, header_style="bold magenta")
     table.add_column("Header", style="cyan")
     table.add_column("Status", justify="center")
     table.add_column("Value", style="dim")
@@ -349,9 +321,7 @@ def format_headers_table(headers: list[dict]) -> Table:
         present = h.get("present", False)
         status_icon = "[green]✓[/green]" if present else "[red]✗[/red]"
         risk = h.get("risk", "low")
-        risk_style = (
-            "red" if risk == "high" else "yellow" if risk == "medium" else "green"
-        )
+        risk_style = "red" if risk == "high" else "yellow" if risk == "medium" else "green"
         table.add_row(
             h.get("header", ""),
             status_icon,
@@ -397,9 +367,7 @@ def format_subdomains_table(subdomains: list[dict]) -> Table:
     Returns:
         A populated :class:`rich.table.Table`.
     """
-    table = Table(
-        title="Subdomain Enumeration", show_header=True, header_style="bold magenta"
-    )
+    table = Table(title="Subdomain Enumeration", show_header=True, header_style="bold magenta")
     table.add_column("Subdomain", style="cyan")
     table.add_column("Type", style="yellow")
     table.add_column("Value", style="dim")
@@ -438,6 +406,5 @@ def print_json(data: Any) -> None:
     Args:
         data: The JSON-serializable value to render.
     """
-    import json
 
     console.print_json(data)

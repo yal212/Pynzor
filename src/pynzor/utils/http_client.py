@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional
 import httpx
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 
@@ -33,6 +33,7 @@ class ClientConfig:
     timeout: float = 10.0
     max_retries: int = 3
     rate_limit: float = 0.1
+    max_concurrency: int = 50
     user_agent: Optional[str] = None
     follow_redirects: bool = True
     verify_ssl: bool = True
@@ -74,7 +75,7 @@ class HTTPClient:
             verify=self.config.verify_ssl,
             headers=headers,
         )
-        self._semaphore = asyncio.Semaphore(50)
+        self._semaphore = asyncio.Semaphore(self.config.max_concurrency)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -170,61 +171,62 @@ class HTTPClient:
         Raises:
             RuntimeError: If the client was not opened as a context manager.
         """
-        if not self._client:
+        if self._client is None or self._semaphore is None:
             raise RuntimeError("HTTPClient must be used as context manager")
 
-        await self._rate_limit()
+        async with self._semaphore:
+            await self._rate_limit()
 
-        for attempt in range(self.config.max_retries):
-            try:
-                start = datetime.now()
-                response = await self._client.request(
-                    method,
-                    url,
-                    data=data,
-                    json=json,
-                    headers=headers,
-                    content=content,
-                )
-                latency = (datetime.now() - start).total_seconds()
+            for attempt in range(self.config.max_retries):
+                try:
+                    start = datetime.now()
+                    response = await self._client.request(
+                        method,
+                        url,
+                        data=data,
+                        json=json,
+                        headers=headers,
+                        content=content,
+                    )
+                    latency = (datetime.now() - start).total_seconds()
 
-                return Response(
-                    url=str(response.url),
-                    status_code=response.status_code,
-                    headers=dict(response.headers),
-                    body=response.text,
-                    latency=latency,
-                )
-            except httpx.TimeoutException as e:
-                if attempt == self.config.max_retries - 1:
+                    return Response(
+                        url=str(response.url),
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                        body=response.text,
+                        latency=latency,
+                    )
+                except httpx.TimeoutException as e:
+                    if attempt == self.config.max_retries - 1:
+                        return Response(
+                            url=url,
+                            status_code=0,
+                            headers={},
+                            body=None,
+                            latency=0,
+                            error=f"Timeout: {e}",
+                        )
+                except httpx.RequestError as e:
                     return Response(
                         url=url,
                         status_code=0,
                         headers={},
                         body=None,
                         latency=0,
-                        error=f"Timeout: {e}",
+                        error=f"Request error: {e}",
                     )
-            except httpx.RequestError as e:
-                return Response(
-                    url=url,
-                    status_code=0,
-                    headers={},
-                    body=None,
-                    latency=0,
-                    error=f"Request error: {e}",
-                )
-            except Exception as e:
-                return Response(
-                    url=url,
-                    status_code=0,
-                    headers={},
-                    body=None,
-                    latency=0,
-                    error=str(e),
-                )
+                except Exception as e:
+                    return Response(
+                        url=url,
+                        status_code=0,
+                        headers={},
+                        body=None,
+                        latency=0,
+                        error=str(e),
+                    )
 
-            await asyncio.sleep(0.5 * (attempt + 1))
+                await asyncio.sleep(0.5 * (attempt + 1))
 
         return Response(
             url=url,
@@ -242,4 +244,3 @@ class HTTPClient:
         if elapsed < self.config.rate_limit:
             await asyncio.sleep(self.config.rate_limit - elapsed)
         self._last_request_time = asyncio.get_event_loop().time()
-
