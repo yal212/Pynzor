@@ -1,19 +1,18 @@
 [project]
 name = "Pynzor"
 version = "1.1.0"
-description = "Web pentesting CLI - scan ports, fuzz directories, hunt headers, and probe for vulns"
+description = "CTF and lab web recon CLI for ports, fuzzing, headers, SQLi, XSS, and subdomains"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "yal212", email = "yal212yal@gmail.com"}
 ]
-keywords = ["security", "pentesting", "web", "reconnaissance", "scanner"]
+keywords = ["security", "ctf", "lab", "pentesting", "web", "reconnaissance", "scanner"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Information Technology",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -41,6 +40,7 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/yal212/Pynzor"
 Repository = "https://github.com/yal212/Pynzor"
+Issues = "https://github.com/yal212/Pynzor/issues"
 
 [project.scripts]
 Pynzor = "cli.main:main"
@@ -51,7 +51,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["reports"]
+exclude = ["reports", "tests", "tests.*", "local", "local.*", "docs", "docs.*"]
 
 [tool.setuptools.package-data]
 "cli" = ["config.yaml", "wordlists/*"]
@@ -62,7 +62,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["Pynzor"]
+source = ["cli", "modules", "output", "utils"]
 omit = ["tests/*", "*/conftest.py"]
 
 [tool.pyright]
