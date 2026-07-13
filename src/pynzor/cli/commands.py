@@ -37,7 +37,12 @@ from pynzor.cli.options import (
 from pynzor.utils.http_client import HTTPClient, ClientConfig
 from pynzor.utils.validators import normalize_url, extract_domain
 import pynzor.modules as modules
-from pynzor.output.reporter import Reporter
+from pynzor.output.reporter import (
+    Reporter,
+    build_report,
+    severity_from_grade,
+    highest_severity,
+)
 from pynzor.output.formatter import Formatter
 
 APP_NAME = "Pynzor"
@@ -210,11 +215,10 @@ def scan(
 
     typer.echo(f"Running full scan on {normalized}")
 
-    results = {
-        "target": normalized,
-        "scan_time": datetime.now().isoformat(),
-        "modules": {},
-    }
+    scan_start = datetime.now().isoformat()
+    modules_out: dict = {}
+    findings: list = []
+    severities: list[str] = []
 
     async def run_all():
         """Run every module in sequence and collect their results."""
@@ -233,13 +237,18 @@ def scan(
             scanner_result = await modules.scan(
                 domain, ports=config["scanner"]["common_ports"]
             )
-        results["modules"]["scanner"] = {
+        open_ports = [p for p in scanner_result.ports if p.status == "open"]
+        modules_out["scanner"] = {
             "ports": [
                 {"port": p.port, "status": p.status, "service": p.service}
                 for p in scanner_result.ports
             ],
-            "open_count": len([p for p in scanner_result.ports if p.status == "open"]),
+            "open_count": len(open_ports),
         }
+        findings.extend(
+            {"module": "ports", "port": p.port, "service": p.service}
+            for p in open_ports
+        )
         formatter.print_scanner_results(scanner_result)
 
         formatter.print_header("Directory Fuzzer")
@@ -247,37 +256,58 @@ def scan(
             fuzzer_result = await modules.fuzz(
                 normalized, config["fuzzer"]["wordlist"], config["fuzzer"]["threads"]
             )
-        results["modules"]["fuzzer"] = {
+        modules_out["fuzzer"] = {
             "found": len(fuzzer_result.found),
             "paths": [r.url for r in fuzzer_result.found[:20]],
+            "scanned": fuzzer_result.scanned,
         }
+        findings.extend(
+            {"module": "fuzz", "url": r.url, "status": r.status_code}
+            for r in fuzzer_result.found[:20]
+        )
         formatter.print_fuzzer_results(fuzzer_result)
 
         formatter.print_header("Security Headers")
         with spinner("Analyzing headers", not no_color):
             headers_result = await modules.analyze(normalized, http)
-        results["modules"]["headers"] = {
+        modules_out["headers"] = {
             "score": headers_result.score,
+            "grade": headers_result.grade,
             "missing": headers_result.missing_headers,
         }
+        findings.extend(
+            {"module": "headers", "header": h, "present": False}
+            for h in headers_result.missing_headers
+        )
+        severities.append(severity_from_grade(headers_result.grade))
         formatter.print_headers_results(headers_result)
 
         formatter.print_header("SQL Injection")
         with spinner("Probing for SQL injection", not no_color):
             sqli_result = await modules.probe(normalized, None)
-        results["modules"]["sqli"] = {
+        modules_out["sqli"] = {
             "vulnerable": sqli_result.vulnerable,
             "payload": sqli_result.payload,
         }
+        if sqli_result.vulnerable:
+            findings.append(
+                {"module": "sqli", "payload": sqli_result.payload, "vulnerable": True}
+            )
+            severities.append("high")
         formatter.print_sqli_results(sqli_result)
 
         formatter.print_header("XSS Detection")
         with spinner("Detecting XSS", not no_color):
             xss_result = await modules.detect(normalized, None)
-        results["modules"]["xss"] = {
+        modules_out["xss"] = {
             "vulnerable": xss_result.vulnerable,
             "payload": xss_result.payload,
         }
+        if xss_result.vulnerable:
+            findings.append(
+                {"module": "xss", "payload": xss_result.payload, "vulnerable": True}
+            )
+            severities.append("high")
         formatter.print_xss_results(xss_result)
 
         formatter.print_header("Subdomain Enumeration")
@@ -285,10 +315,23 @@ def scan(
             subdomain_result = await modules.enumerate(
                 domain, config["subdomain"]["wordlist"], config["subdomain"]["threads"]
             )
-        results["modules"]["subdomain"] = {
+        modules_out["subdomain"] = {
             "found": len(subdomain_result.subdomains),
-            "subdomains": subdomain_result.subdomains[:20],
+            "subdomains": [
+                {
+                    "subdomain": s.subdomain,
+                    "record_type": s.record_type,
+                    "value": s.value,
+                    "verified": s.verified,
+                }
+                for s in subdomain_result.subdomains[:20]
+            ],
+            "scanned": subdomain_result.scanned,
         }
+        findings.extend(
+            {"module": "subdomain", "subdomain": s.subdomain, "value": s.value}
+            for s in subdomain_result.subdomains[:20]
+        )
         formatter.print_subdomain_results(subdomain_result)
 
         # HTTPClient exposes an async close() method for explicit shutdown
@@ -296,6 +339,15 @@ def scan(
         await http.close()
 
     asyncio.run(run_all())
+
+    results = build_report(
+        module="scan",
+        target=normalized,
+        findings=findings,
+        severity=highest_severity(severities),
+        metadata={"scan_time": scan_start, "modules": modules_out},
+        timestamp=scan_start,
+    )
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True, parents=True)
@@ -432,10 +484,10 @@ def fuzz(
     output_path.mkdir(exist_ok=True, parents=True)
     report_file = output_path / f"fuzz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
-        {
-            "target": normalized,
-            "mode": result.mode,
-            "found": [
+        build_report(
+            module="fuzz",
+            target=normalized,
+            findings=[
                 {
                     "url": r.url,
                     "status": r.status_code,
@@ -444,7 +496,12 @@ def fuzz(
                 }
                 for r in result.found
             ],
-        },
+            metadata={
+                "mode": result.mode,
+                "found_count": len(result.found),
+                "scanned": result.scanned,
+            },
+        ),
         report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
@@ -504,9 +561,10 @@ def ports(
     output_path.mkdir(exist_ok=True, parents=True)
     report_file = output_path / f"ports_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
-        {
-            "target": host,
-            "ports": [
+        build_report(
+            module="ports",
+            target=host,
+            findings=[
                 {
                     "port": p.port,
                     "status": p.status,
@@ -518,7 +576,10 @@ def ports(
                 for p in result.ports
                 if p.status != "closed"
             ],
-        },
+            metadata={
+                "open_count": len([p for p in result.ports if p.status == "open"]),
+            },
+        ),
         report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
@@ -554,7 +615,22 @@ def headers_cmd(
         output_path / f"headers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     )
     reporter.save(
-        {"target": normalized, "score": result.score, "grade": result.grade},
+        build_report(
+            module="headers",
+            target=normalized,
+            findings=[
+                {
+                    "header": a.header,
+                    "present": a.present,
+                    "risk": a.risk,
+                    "recommendation": a.recommendation,
+                }
+                for a in result.analysis
+                if not a.present
+            ],
+            severity=severity_from_grade(result.grade),
+            metadata={"score": result.score, "grade": result.grade},
+        ),
         report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
@@ -588,11 +664,25 @@ def sqli(
     output_path.mkdir(exist_ok=True, parents=True)
     report_file = output_path / f"sqli_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
-        {
-            "target": normalized,
-            "vulnerable": result.vulnerable,
-            "payload": result.payload,
-        },
+        build_report(
+            module="sqli",
+            target=normalized,
+            findings=[
+                {
+                    "url": v.url,
+                    "payload": v.payload,
+                    "type": v.type,
+                    "evidence": v.evidence,
+                }
+                for v in result.vulnerabilities
+            ],
+            severity="high" if result.vulnerable else "info",
+            metadata={
+                "vulnerable": result.vulnerable,
+                "payload": result.payload,
+                "tested": result.tested,
+            },
+        ),
         report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
@@ -626,11 +716,25 @@ def xss(
     output_path.mkdir(exist_ok=True, parents=True)
     report_file = output_path / f"xss_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     reporter.save(
-        {
-            "target": normalized,
-            "vulnerable": result.vulnerable,
-            "payload": result.payload,
-        },
+        build_report(
+            module="xss",
+            target=normalized,
+            findings=[
+                {
+                    "url": v.url,
+                    "payload": v.payload,
+                    "type": v.type,
+                    "evidence": v.evidence,
+                }
+                for v in result.vulnerabilities
+            ],
+            severity="high" if result.vulnerable else "info",
+            metadata={
+                "vulnerable": result.vulnerable,
+                "payload": result.payload,
+                "tested": result.tested,
+            },
+        ),
         report_file,
     )
     typer.echo(f"\nReport saved to: {report_file}")
@@ -672,7 +776,23 @@ def subdomain(
     report_file = (
         output_path / f"subdomain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     )
-    reporter.save({"target": domain, "subdomains": result.subdomains}, report_file)
+    reporter.save(
+        build_report(
+            module="subdomain",
+            target=domain,
+            findings=[
+                {
+                    "subdomain": s.subdomain,
+                    "record_type": s.record_type,
+                    "value": s.value,
+                    "verified": s.verified,
+                }
+                for s in result.subdomains
+            ],
+            metadata={"found_count": len(result.subdomains), "scanned": result.scanned},
+        ),
+        report_file,
+    )
     typer.echo(f"\nReport saved to: {report_file}")
 
 
