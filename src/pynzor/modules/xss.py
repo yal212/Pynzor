@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-from utils.http_client import HTTPClient, ClientConfig
+from pynzor.utils.http_client import HTTPClient, ClientConfig
 from bs4 import BeautifulSoup
 import re
 

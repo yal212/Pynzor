@@ -1,5 +1,5 @@
 import pytest
-from modules import scanner
+from pynzor.modules import scanner
 
 
 @pytest.mark.asyncio

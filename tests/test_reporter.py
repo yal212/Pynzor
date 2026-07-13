@@ -1,7 +1,7 @@
 import json
 import pytest
 from pathlib import Path
-from output.reporter import Reporter, save_json_report, generate_scan_summary
+from pynzor.output.reporter import Reporter, save_json_report, generate_scan_summary
 
 
 def make_results():

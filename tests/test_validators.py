@@ -1,4 +1,4 @@
-from utils.validators import extract_domain
+from pynzor.utils.validators import extract_domain
 
 
 def test_extract_domain_strips_port():

@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from modules.xss import (
+from pynzor.modules.xss import (
     _check_reflected,
     _is_raw_reflected,
     _is_encoded_reflected,
@@ -10,7 +10,7 @@ from modules.xss import (
     detect_xss,
     XSSVulnerability,
 )
-from utils.http_client import HTTPClient, ClientConfig
+from pynzor.utils.http_client import HTTPClient, ClientConfig
 
 
 def test_check_reflected_exact():
@@ -197,7 +197,7 @@ async def test_post_form_scanning():
             )
         )
         async with client:
-            from modules.xss import _test_payload_post, _extract_forms
+            from pynzor.modules.xss import _test_payload_post, _extract_forms
             page_html = '<html><body><form action="/submit" method="post"><input name="msg"></form></body></html>'
             forms = _extract_forms(page_html, "http://example.com")
             result = await _test_payload_post(

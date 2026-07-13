@@ -7,7 +7,7 @@ from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from rich.console import Console
 
-from cli.options import (
+from pynzor.cli.options import (
     target,
     output_dir,
     report_format,
@@ -34,11 +34,11 @@ from cli.options import (
     output_normal as output_normal_opt,
     scan_threads as scan_threads_opt,
 )
-from utils.http_client import HTTPClient, ClientConfig
-from utils.validators import normalize_url, extract_domain
-import modules
-from output.reporter import Reporter
-from output.formatter import Formatter
+from pynzor.utils.http_client import HTTPClient, ClientConfig
+from pynzor.utils.validators import normalize_url, extract_domain
+import pynzor.modules as modules
+from pynzor.output.reporter import Reporter
+from pynzor.output.formatter import Formatter
 
 APP_NAME = "Pynzor"
 
@@ -462,7 +462,7 @@ def ports(
     config_file: Path = config_file,
 ):
     """Port scan with optional service/version detection (nmap-style)"""
-    from modules.scanner import parse_ports, format_nmap_text
+    from pynzor.modules.scanner import parse_ports, format_nmap_text
 
     config = load_config(config_file)
     formatter.no_color = no_color

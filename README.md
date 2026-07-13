@@ -43,6 +43,9 @@ pipx install Pynzor
 Pynzor --help
 ```
 
+The CLI is available as both `Pynzor` and the lowercase `pynzor` — the two are
+interchangeable, so use whichever you prefer.
+
 Install with `pip` if you prefer managing the environment yourself:
 
 ```bash
@@ -138,7 +141,20 @@ Video demo:
 
 ## Configuration
 
-The packaged default config lives at `cli/config.yaml`; source installs also include the root `config.yaml` for reference. Use `--config` to point at a custom file.
+Pynzor ships a single canonical default config, bundled inside the package at
+`src/pynzor/cli/config.yaml`. It is loaded automatically on every run — no setup
+required. To customize, copy it somewhere writable and point `--config` at your
+copy:
+
+```bash
+# copy the bundled default out of the installed package
+python -c "import importlib.resources as r, shutil; shutil.copy(r.files('pynzor.cli') / 'config.yaml', 'pynzor.config.yaml')"
+Pynzor scan -t https://target.lab --config ./pynzor.config.yaml
+```
+
+Bundled wordlists (`src/pynzor/cli/wordlists/`) and the HTML report template are
+resolved relative to the config file, so both editable installs and standalone
+binaries find them without any extra configuration.
 
 Configurable areas:
 

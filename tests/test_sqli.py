@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from modules.sqli import (
+from pynzor.modules.sqli import (
     _test_payload,
     _test_time_based,
     _test_boolean_blind,
@@ -11,7 +11,7 @@ from modules.sqli import (
     SQLiVulnerability,
     TIME_BASED_THRESHOLD,
 )
-from utils.http_client import HTTPClient, ClientConfig
+from pynzor.utils.http_client import HTTPClient, ClientConfig
 
 
 @pytest.mark.asyncio
@@ -135,7 +135,7 @@ async def test_time_based_blind_detected():
         async with client:
             # Patch latency directly on the first response
             from unittest.mock import patch, AsyncMock
-            from utils.http_client import Response as HttpResponse
+            from pynzor.utils.http_client import Response as HttpResponse
 
             async def fake_get(url):
                 return HttpResponse(
@@ -160,7 +160,7 @@ async def test_time_based_blind_not_triggered_fast_response():
     client = HTTPClient(config)
     async with client:
         from unittest.mock import patch
-        from utils.http_client import Response as HttpResponse
+        from pynzor.utils.http_client import Response as HttpResponse
 
         async def fast_get(url):
             return HttpResponse(
@@ -181,7 +181,7 @@ async def test_boolean_blind_detected():
     client = HTTPClient(config)
     async with client:
         from unittest.mock import patch
-        from utils.http_client import Response as HttpResponse
+        from pynzor.utils.http_client import Response as HttpResponse
 
         # True condition returns longer body than false condition
         call_count = 0
@@ -211,7 +211,7 @@ async def test_boolean_blind_not_triggered_identical_responses():
     client = HTTPClient(config)
     async with client:
         from unittest.mock import patch
-        from utils.http_client import Response as HttpResponse
+        from pynzor.utils.http_client import Response as HttpResponse
 
         async def same_get(url):
             return HttpResponse(

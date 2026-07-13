@@ -2,7 +2,7 @@ import pytest
 import dns.resolver
 from unittest.mock import patch, MagicMock
 
-from modules.subdomain import enumerate_subdomains
+from pynzor.modules.subdomain import enumerate_subdomains
 
 
 def _mock_a_answer(ips: list[str]):

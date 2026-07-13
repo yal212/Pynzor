@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from modules.headers import analyze_headers, HeaderResult
+from pynzor.modules.headers import analyze_headers, HeaderResult
 
 
 @pytest.mark.asyncio

@@ -4,8 +4,8 @@ import dns.resolver
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-from utils.http_client import HTTPClient, ClientConfig
-from utils.validators import extract_domain, extract_root_domain
+from pynzor.utils.http_client import HTTPClient, ClientConfig
+from pynzor.utils.validators import extract_domain, extract_root_domain
 
 
 DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]

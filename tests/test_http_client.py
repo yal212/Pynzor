@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from utils.http_client import HTTPClient, ClientConfig
+from pynzor.utils.http_client import HTTPClient, ClientConfig
 
 
 @pytest.mark.asyncio

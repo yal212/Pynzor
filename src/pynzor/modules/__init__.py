@@ -7,7 +7,7 @@ from . import sqli as _sqli
 from . import xss as _xss
 from . import subdomain as _subdomain
 from .fuzzer import is_request_mode
-from utils.http_client import HTTPClient
+from pynzor.utils.http_client import HTTPClient
 
 
 async def scan(

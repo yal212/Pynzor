@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from pathlib import Path
-from utils.http_client import HTTPClient, ClientConfig, Response
-from utils.validators import extract_domain
+from pynzor.utils.http_client import HTTPClient, ClientConfig, Response
+from pynzor.utils.validators import extract_domain
 
 
 FUZZ_KEYWORD = "FUZZ"

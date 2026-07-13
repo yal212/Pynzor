@@ -1,10 +1,7 @@
 include LICENSE.md
 include README.md
 include pyproject.toml
-recursive-include cli *.py *.yaml *.txt
-recursive-include modules *.py
-recursive-include output *.py *.j2
-recursive-include utils *.py
+recursive-include src/pynzor *.py *.yaml *.txt *.j2
 recursive-include docs *.md *.json *.html
 prune tests
 prune local
