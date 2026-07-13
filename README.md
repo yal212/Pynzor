@@ -133,7 +133,27 @@ Sample outputs:
 
 ## Demo
 
-The tracked terminal walkthrough is in [docs/demo/terminal-demo.md](docs/demo/terminal-demo.md). It shows the expected launch flow without requiring public targets or destructive actions.
+A recorded terminal session is tracked as an asciinema cast at
+[docs/demo/pynzor-demo.cast](docs/demo/pynzor-demo.cast). It walks through
+`--version`, `headers`, `ports`, `fuzz`, and `report` against a local
+`127.0.0.1` fixture — no public target is scanned. Replay it locally with:
+
+```bash
+asciinema play docs/demo/pynzor-demo.cast
+```
+
+or upload it to [asciinema.org](https://asciinema.org) to share a web player.
+
+Regenerate the cast at any time (it captures real CLI output against the local
+fixture, so no external network is used):
+
+```bash
+uv run python docs/demo/record_demo.py
+```
+
+Prefer a manual recording? Start a local fixture and run `asciinema rec` while
+you drive the commands yourself. The step-by-step written walkthrough is in
+[docs/demo/terminal-demo.md](docs/demo/terminal-demo.md).
 
 Video demo:
 
@@ -206,6 +226,9 @@ uv run Pynzor --help
 ```
 
 The project targets Python 3.10+ and keeps dependencies intentionally small.
+
+Release history is tracked in [CHANGELOG.md](CHANGELOG.md), and the maintainer
+release process is documented in [RELEASING.md](RELEASING.md).
 
 ## Safety
 
