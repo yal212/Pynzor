@@ -1,13 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['src/pynzor/cli/main.py'],
+    pathex=['src'],
     binaries=[],
     datas=[
-        ('cli/wordlists', 'cli/wordlists'),
-        ('output/templates', 'output/templates'),
-        ('cli/config.yaml', 'cli'),
+        # Destinations mirror the package layout so __file__-relative loaders
+        # (load_config, the Jinja templates dir) resolve inside _MEIPASS.
+        ('src/pynzor/cli/wordlists', 'pynzor/cli/wordlists'),
+        ('src/pynzor/output/templates', 'pynzor/output/templates'),
+        ('src/pynzor/cli/config.yaml', 'pynzor/cli'),
     ],
     hiddenimports=[
         'dns',
