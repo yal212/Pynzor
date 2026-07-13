@@ -25,3 +25,35 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+
+  smoke:
+    name: Installed-wheel smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build --wheel
+
+      - name: Install wheel into a clean venv
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke-venv"
+          "$RUNNER_TEMP/smoke-venv/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/smoke-venv/bin/python" -m pip install dist/*.whl
+
+      - name: Smoke test console scripts and bundled data (outside repo root)
+        working-directory: ${{ runner.temp }}
+        run: |
+          BIN="$RUNNER_TEMP/smoke-venv/bin"
+          "$BIN/Pynzor" --version
+          "$BIN/Pynzor" --help
+          "$BIN/Pynzor" headers --help
+          "$BIN/pynzor" --version
+          "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); print('bundled package data OK')"
