@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from modules.fuzzer import (
+from pynzor.modules.fuzzer import (
     fuzz_directory,
     fuzz_request,
     load_wordlist,
@@ -11,7 +11,7 @@ from modules.fuzzer import (
     BaselineSignature,
     _is_directory_hit,
 )
-from utils.http_client import Response
+from pynzor.utils.http_client import Response
 
 
 @pytest.mark.asyncio
@@ -410,7 +410,7 @@ def _resp(status: int, body: str) -> Response:
 
 def test_baseline_out_of_tolerance_skips_hash(monkeypatch):
     """A body whose size is well outside tolerance is rejected without hashing."""
-    import modules.fuzzer as fz
+    import pynzor.modules.fuzzer as fz
 
     baseline = BaselineSignature(
         status_code=200, content_length=100_000, body_hash="unused", probe_path="p"
@@ -436,7 +436,7 @@ def test_baseline_large_body_length_drift_matches_without_hash_match():
 
 def test_baseline_short_body_length_gap_skips_hash(monkeypatch):
     """A short baseline rejects an obviously different-length body without hashing."""
-    import modules.fuzzer as fz
+    import pynzor.modules.fuzzer as fz
 
     baseline = BaselineSignature(
         status_code=200, content_length=50, body_hash="unused", probe_path="p"
@@ -452,7 +452,7 @@ def test_baseline_short_body_length_gap_skips_hash(monkeypatch):
 
 def test_baseline_short_body_exact_hash_match():
     """A short baseline still matches on an exact normalized-body hash."""
-    from modules.fuzzer import _hash_body
+    from pynzor.modules.fuzzer import _hash_body
 
     body = "<html>catch-all</html>"
     baseline = BaselineSignature(

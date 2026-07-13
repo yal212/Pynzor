@@ -36,7 +36,7 @@
 <h1>Pynzor Scan Report</h1>
 <div class="meta">
   <strong>Target:</strong> {{ data.target }} &nbsp;|&nbsp;
-  <strong>Scan Time:</strong> {{ data.scan_time }}
+  <strong>Scan Time:</strong> {{ data.timestamp or data.scan_time }}
 </div>
 
 <div class="summary-grid">
@@ -54,7 +54,7 @@
   </div>
 </div>
 
-{% set modules = data.get('modules', {}) %}
+{% set modules = data.get('metadata', {}).get('modules', data.get('modules', {})) %}
 
 {% if modules.scanner is defined %}
 <h2>Port Scanner</h2>

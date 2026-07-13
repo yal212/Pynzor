@@ -43,6 +43,9 @@ pipx install Pynzor
 Pynzor --help
 ```
 
+The CLI is available as both `Pynzor` and the lowercase `pynzor` — the two are
+interchangeable, so use whichever you prefer.
+
 Install with `pip` if you prefer managing the environment yourself:
 
 ```bash
@@ -138,7 +141,20 @@ Video demo:
 
 ## Configuration
 
-The packaged default config lives at `cli/config.yaml`; source installs also include the root `config.yaml` for reference. Use `--config` to point at a custom file.
+Pynzor ships a single canonical default config, bundled inside the package at
+`src/pynzor/cli/config.yaml`. It is loaded automatically on every run — no setup
+required. To customize, copy it somewhere writable and point `--config` at your
+copy:
+
+```bash
+# copy the bundled default out of the installed package
+python -c "import importlib.resources as r, shutil; shutil.copy(r.files('pynzor.cli') / 'config.yaml', 'pynzor.config.yaml')"
+Pynzor scan -t https://target.lab --config ./pynzor.config.yaml
+```
+
+Bundled wordlists (`src/pynzor/cli/wordlists/`) and the HTML report template are
+resolved relative to the config file, so both editable installs and standalone
+binaries find them without any extra configuration.
 
 Configurable areas:
 
@@ -158,11 +174,28 @@ Tagged GitHub releases build PyInstaller binaries for Windows, macOS, and Linux:
 | macOS | `Pynzor-macos` | `chmod +x Pynzor-macos && ./Pynzor-macos --help` |
 | Linux | `Pynzor-linux` | `chmod +x Pynzor-linux && ./Pynzor-linux --help` |
 
-If macOS blocks the binary, allow it from System Settings or run:
+The binaries are self-contained: the default config, wordlists, and HTML report
+template are bundled inside and resolved at runtime, so reports can be written to
+any output directory you pass with `-o`. Each release build is smoke-tested
+(`--version`, `--help`, `headers --help`) on its native runner in CI.
 
-```bash
-xattr -d com.apple.quarantine ./Pynzor-macos
-```
+Platform notes:
+
+- **macOS** — binaries are unsigned. If Gatekeeper blocks the binary, allow it
+  from System Settings or clear the quarantine attribute:
+
+  ```bash
+  xattr -d com.apple.quarantine ./Pynzor-macos
+  ```
+
+  Built on Apple Silicon runners (`arm64`); run under Rosetta on Intel Macs if
+  needed.
+- **Linux** — built on `ubuntu-latest` against that image's glibc; very old
+  distros may not be compatible. Prefer `pipx install Pynzor` there.
+- **Windows** — TLS uses the bundled `certifi` CA store, so HTTPS targets work
+  without a system Python.
+- **UPX** — the spec enables UPX compression; if a corporate AV flags the
+  binary, rebuild with `upx=False` in `Pynzor.spec`.
 
 ## Development
 

@@ -44,6 +44,13 @@ jobs:
       - name: Build exe
         run: pyinstaller Pynzor.spec
 
+      - name: Smoke test binary
+        run: |
+          dist\Pynzor.exe --version
+          dist\Pynzor.exe --help
+          dist\Pynzor.exe headers --help
+        shell: cmd
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -68,6 +75,12 @@ jobs:
 
       - name: Build binary
         run: pyinstaller Pynzor.spec
+
+      - name: Smoke test binary
+        run: |
+          ./dist/Pynzor --version
+          ./dist/Pynzor --help
+          ./dist/Pynzor headers --help
 
       - name: Rename binary
         run: mv dist/Pynzor dist/Pynzor-macos
@@ -96,6 +109,12 @@ jobs:
 
       - name: Build binary
         run: pyinstaller Pynzor.spec
+
+      - name: Smoke test binary
+        run: |
+          ./dist/Pynzor --version
+          ./dist/Pynzor --help
+          ./dist/Pynzor headers --help
 
       - name: Rename binary
         run: mv dist/Pynzor dist/Pynzor-linux

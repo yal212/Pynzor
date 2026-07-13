@@ -2,7 +2,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from cli.commands import app, load_config
+from pynzor.cli.commands import app, load_config
 
 
 runner = CliRunner()
@@ -26,7 +26,7 @@ def test_version_flag_prints_package_name():
 
 
 def test_default_config_resolves_bundled_wordlists():
-    """Default config paths resolve relative to the packaged cli/config.yaml."""
+    """Default config paths resolve relative to pynzor/cli/config.yaml."""
     config = load_config()
 
     assert Path(config["fuzzer"]["wordlist"]).is_file()

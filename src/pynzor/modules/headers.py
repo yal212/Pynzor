@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-from utils.http_client import HTTPClient, ClientConfig, Response
+from pynzor.utils.http_client import HTTPClient, ClientConfig, Response
 
 
 SECURITY_HEADERS = {

@@ -1,3 +1,5 @@
 {
-    "python": ".venv/bin/python"
+    "python": ".venv/bin/python",
+    "include": ["src"],
+    "extraPaths": ["src"]
 }

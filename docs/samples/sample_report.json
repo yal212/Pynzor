@@ -1,77 +1,140 @@
 {
+  "schema_version": 1,
   "target": "https://target.lab",
-  "scan_time": "2026-07-13T12:00:00",
-  "modules": {
-    "scanner": {
-      "ports": [
-        {
-          "port": 22,
-          "status": "open",
-          "service": "SSH"
-        },
-        {
-          "port": 80,
-          "status": "open",
-          "service": "HTTP"
-        },
-        {
-          "port": 443,
-          "status": "closed",
-          "service": "HTTPS"
-        },
-        {
-          "port": 8080,
-          "status": "open",
-          "service": "HTTP-Proxy"
-        }
-      ],
-      "open_count": 3
+  "timestamp": "2026-07-13T12:00:00",
+  "module": "scan",
+  "findings": [
+    {
+      "module": "ports",
+      "port": 22,
+      "service": "SSH"
     },
-    "fuzzer": {
-      "found": 4,
-      "paths": [
-        "https://target.lab/admin",
-        "https://target.lab/login",
-        "https://target.lab/robots.txt",
-        "https://target.lab/dev/"
-      ],
-      "scanned": 120
+    {
+      "module": "ports",
+      "port": 80,
+      "service": "HTTP"
     },
-    "headers": {
-      "score": 55,
-      "missing": [
-        "Content-Security-Policy",
-        "Strict-Transport-Security",
-        "Referrer-Policy"
-      ]
+    {
+      "module": "ports",
+      "port": 8080,
+      "service": "HTTP-Proxy"
     },
-    "sqli": {
-      "vulnerable": false,
-      "payload": "",
-      "vulnerabilities": []
+    {
+      "module": "fuzz",
+      "url": "https://target.lab/admin"
     },
-    "xss": {
-      "vulnerable": false,
-      "payload": "",
-      "vulnerabilities": []
+    {
+      "module": "fuzz",
+      "url": "https://target.lab/login"
     },
-    "subdomain": {
-      "found": 2,
-      "subdomains": [
-        {
-          "subdomain": "admin.target.lab",
-          "record_type": "A",
-          "value": "10.10.10.20",
-          "verified": true
-        },
-        {
-          "subdomain": "dev.target.lab",
-          "record_type": "A",
-          "value": "10.10.10.21",
-          "verified": true
-        }
-      ],
-      "scanned": 80
+    {
+      "module": "fuzz",
+      "url": "https://target.lab/robots.txt"
+    },
+    {
+      "module": "fuzz",
+      "url": "https://target.lab/dev/"
+    },
+    {
+      "module": "headers",
+      "header": "Content-Security-Policy",
+      "present": false
+    },
+    {
+      "module": "headers",
+      "header": "Strict-Transport-Security",
+      "present": false
+    },
+    {
+      "module": "headers",
+      "header": "Referrer-Policy",
+      "present": false
+    },
+    {
+      "module": "subdomain",
+      "subdomain": "admin.target.lab",
+      "value": "10.10.10.20"
+    },
+    {
+      "module": "subdomain",
+      "subdomain": "dev.target.lab",
+      "value": "10.10.10.21"
+    }
+  ],
+  "severity": "medium",
+  "metadata": {
+    "scan_time": "2026-07-13T12:00:00",
+    "modules": {
+      "scanner": {
+        "ports": [
+          {
+            "port": 22,
+            "status": "open",
+            "service": "SSH"
+          },
+          {
+            "port": 80,
+            "status": "open",
+            "service": "HTTP"
+          },
+          {
+            "port": 443,
+            "status": "closed",
+            "service": "HTTPS"
+          },
+          {
+            "port": 8080,
+            "status": "open",
+            "service": "HTTP-Proxy"
+          }
+        ],
+        "open_count": 3
+      },
+      "fuzzer": {
+        "found": 4,
+        "paths": [
+          "https://target.lab/admin",
+          "https://target.lab/login",
+          "https://target.lab/robots.txt",
+          "https://target.lab/dev/"
+        ],
+        "scanned": 120
+      },
+      "headers": {
+        "score": 55,
+        "grade": "C",
+        "missing": [
+          "Content-Security-Policy",
+          "Strict-Transport-Security",
+          "Referrer-Policy"
+        ]
+      },
+      "sqli": {
+        "vulnerable": false,
+        "payload": ""
+      },
+      "xss": {
+        "vulnerable": false,
+        "payload": ""
+      },
+      "subdomain": {
+        "found": 2,
+        "subdomains": [
+          {
+            "subdomain": "admin.target.lab",
+            "record_type": "A",
+            "value": "10.10.10.20",
+            "verified": true
+          },
+          {
+            "subdomain": "dev.target.lab",
+            "record_type": "A",
+            "value": "10.10.10.21",
+            "verified": true
+          }
+        ],
+        "scanned": 80
+      }
     }
   }
 }

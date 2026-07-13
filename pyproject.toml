@@ -43,26 +43,26 @@ Repository = "https://github.com/yal212/Pynzor"
 Issues = "https://github.com/yal212/Pynzor/issues"
 
 [project.scripts]
-Pynzor = "cli.main:main"
+Pynzor = "pynzor.cli.main:main"
+pynzor = "pynzor.cli.main:main"
 
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["."]
-exclude = ["reports", "tests", "tests.*", "local", "local.*", "docs", "docs.*"]
+where = ["src"]
 
 [tool.setuptools.package-data]
-"cli" = ["config.yaml", "wordlists/*"]
-"output" = ["templates/*"]
+"pynzor.cli" = ["config.yaml", "wordlists/*"]
+"pynzor.output" = ["templates/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["cli", "modules", "output", "utils"]
+source = ["pynzor"]
 omit = ["tests/*", "*/conftest.py"]
 
 [tool.pyright]

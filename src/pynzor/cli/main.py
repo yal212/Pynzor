@@ -1,6 +1,6 @@
 import sys
 
-from cli.commands import app, get_version
+from pynzor.cli.commands import app, get_version
 
 BANNER = r"""
 ██████╗ ██╗   ██╗███╗   ██╗███████╗ ██████╗ ██████╗
