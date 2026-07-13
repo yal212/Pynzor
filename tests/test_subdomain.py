@@ -63,9 +63,7 @@ async def test_subdomain_real_subdomain_distinguished_from_wildcard():
     """A subdomain resolving to non-wildcard IPs is kept while wildcard ones are filtered."""
     wildcard_ips = ["203.0.113.42"]
     real_ips = ["198.51.100.10"]
-    side_effect = _make_resolve(
-        {"api.example.com": real_ips}, wildcard_ips=wildcard_ips
-    )
+    side_effect = _make_resolve({"api.example.com": real_ips}, wildcard_ips=wildcard_ips)
 
     with patch.object(dns.resolver.Resolver, "resolve", side_effect=side_effect):
         result = await enumerate_subdomains(
@@ -85,9 +83,7 @@ async def test_subdomain_real_subdomain_distinguished_from_wildcard():
 @pytest.mark.asyncio
 async def test_subdomain_no_wildcard_normal_path():
     """Without wildcard DNS, only genuinely resolving subdomains are returned."""
-    side_effect = _make_resolve(
-        {"api.example.com": ["198.51.100.10"]}, wildcard_ips=None
-    )
+    side_effect = _make_resolve({"api.example.com": ["198.51.100.10"]}, wildcard_ips=None)
 
     with patch.object(dns.resolver.Resolver, "resolve", side_effect=side_effect):
         result = await enumerate_subdomains(

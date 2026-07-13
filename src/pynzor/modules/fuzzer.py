@@ -25,9 +25,7 @@ def is_request_mode(
     target, header names, or header values, a non-GET method is used, or a
     non-empty request body is supplied. Otherwise we run gobuster-style
     directory fuzzing."""
-    header_text = " ".join(
-        f"{k} {v}" for k, v in (headers or {}).items()
-    )
+    header_text = " ".join(f"{k} {v}" for k, v in (headers or {}).items())
     return (
         FUZZ_KEYWORD in target
         or FUZZ_KEYWORD in header_text
@@ -175,9 +173,7 @@ async def _probe_baseline(
 
     # Accept baseline if bodies are identical (hash match) or, for larger
     # bodies, differ by only a few percent (dynamic content).
-    length_ok = first_len >= 500 and abs(first_len - second_len) <= max(
-        20, int(first_len * 0.03)
-    )
+    length_ok = first_len >= 500 and abs(first_len - second_len) <= max(20, int(first_len * 0.03))
     if first_hash == second_hash or length_ok:
         return BaselineSignature(
             status_code=first.status_code,
@@ -202,9 +198,7 @@ def _normalize_extensions(extensions: Optional[list[str]]) -> list[str]:
     return norm
 
 
-def expand_candidates(
-    wordlist: list[str], extensions: Optional[list[str]]
-) -> list[str]:
+def expand_candidates(wordlist: list[str], extensions: Optional[list[str]]) -> list[str]:
     """Expand each word into the bare word plus ``word+ext`` for each extension
     (gobuster ``-x`` behavior). The bare word is always probed."""
     exts = _normalize_extensions(extensions)
@@ -417,15 +411,12 @@ async def fuzz_request(
         """Substitute one word into the request and return a hit or None."""
         url = target.replace(FUZZ_KEYWORD, word)
         req_headers = {
-            k.replace(FUZZ_KEYWORD, word): v.replace(FUZZ_KEYWORD, word)
-            for k, v in headers.items()
+            k.replace(FUZZ_KEYWORD, word): v.replace(FUZZ_KEYWORD, word) for k, v in headers.items()
         }
         body = data.replace(FUZZ_KEYWORD, word) if data is not None else None
 
         async with semaphore:
-            response = await client.request(
-                method, url, headers=req_headers or None, content=body
-            )
+            response = await client.request(method, url, headers=req_headers or None, content=body)
         totals["scanned"] += 1
 
         if response.error:
@@ -452,9 +443,7 @@ async def fuzz_request(
         )
 
     async with client:
-        results = await asyncio.gather(
-            *(fuzz_word(w) for w in wordlist), return_exceptions=True
-        )
+        results = await asyncio.gather(*(fuzz_word(w) for w in wordlist), return_exceptions=True)
 
     found = []
     for r in results:

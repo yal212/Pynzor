@@ -6,6 +6,28 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install package
+        run: python -m pip install -e '.[dev]'
+
+      - name: Ruff lint
+        run: python -m ruff check src tests
+
+      - name: Ruff format check
+        run: python -m ruff format --check src tests
+
+      - name: Pyright type check
+        run: python -m pyright
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -24,7 +46,7 @@ jobs:
         run: python -m pip install -e '.[dev]'
 
       - name: Run tests
-        run: python -m pytest
+        run: python -m pytest --cov --cov-report=term-missing
 
   smoke:
     name: Installed-wheel smoke test
@@ -56,4 +78,4 @@ jobs:
           "$BIN/Pynzor" --help
           "$BIN/Pynzor" headers --help
           "$BIN/pynzor" --version
-          "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); print('bundled package data OK')"
+          "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor')/'py.typed').is_file(); assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); print('bundled package data OK')"

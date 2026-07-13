@@ -18,7 +18,18 @@ def make_modules():
         "sqli": {"vulnerable": True, "payload": "' OR '1'='1"},
         "xss": {"vulnerable": False, "payload": ""},
         "fuzzer": {"found": 2, "paths": ["/admin", "/login"], "scanned": 100},
-        "subdomain": {"found": 1, "subdomains": [{"subdomain": "api.example.com", "record_type": "A", "value": "1.2.3.4", "verified": True}], "scanned": 50},
+        "subdomain": {
+            "found": 1,
+            "subdomains": [
+                {
+                    "subdomain": "api.example.com",
+                    "record_type": "A",
+                    "value": "1.2.3.4",
+                    "verified": True,
+                }
+            ],
+            "scanned": 50,
+        },
     }
 
 
@@ -40,7 +51,15 @@ def make_results():
 def test_build_report_has_normalized_top_level_fields():
     """build_report emits the shared envelope with every required field."""
     report = build_report(module="headers", target="http://example.com", findings=[])
-    for key in ("schema_version", "target", "timestamp", "module", "findings", "severity", "metadata"):
+    for key in (
+        "schema_version",
+        "target",
+        "timestamp",
+        "module",
+        "findings",
+        "severity",
+        "metadata",
+    ):
         assert key in report
     assert report["schema_version"] == SCHEMA_VERSION
     assert report["module"] == "headers"
@@ -52,16 +71,42 @@ def test_build_report_has_normalized_top_level_fields():
     "module, findings, severity, metadata",
     [
         ("ports", [{"port": 22, "status": "open", "service": "ssh"}], "info", {"open_count": 1}),
-        ("fuzz", [{"url": "http://x/admin", "status": 200, "length": 10, "word": "admin"}], "info", {"mode": "directory", "found_count": 1}),
-        ("headers", [{"header": "Content-Security-Policy", "present": False, "risk": "high"}], "medium", {"score": 55, "grade": "C"}),
-        ("sqli", [{"url": "http://x/?id=1", "payload": "'", "type": "error", "evidence": "SQL"}], "high", {"vulnerable": True}),
+        (
+            "fuzz",
+            [{"url": "http://x/admin", "status": 200, "length": 10, "word": "admin"}],
+            "info",
+            {"mode": "directory", "found_count": 1},
+        ),
+        (
+            "headers",
+            [{"header": "Content-Security-Policy", "present": False, "risk": "high"}],
+            "medium",
+            {"score": 55, "grade": "C"},
+        ),
+        (
+            "sqli",
+            [{"url": "http://x/?id=1", "payload": "'", "type": "error", "evidence": "SQL"}],
+            "high",
+            {"vulnerable": True},
+        ),
         ("xss", [], "info", {"vulnerable": False}),
-        ("subdomain", [{"subdomain": "api.x", "record_type": "A", "value": "1.2.3.4", "verified": True}], "info", {"found_count": 1}),
+        (
+            "subdomain",
+            [{"subdomain": "api.x", "record_type": "A", "value": "1.2.3.4", "verified": True}],
+            "info",
+            {"found_count": 1},
+        ),
     ],
 )
 def test_build_report_per_module(tmp_path, module, findings, severity, metadata):
     """Each module type produces a saveable, round-trippable normalized report."""
-    report = build_report(module=module, target="http://example.com", findings=findings, severity=severity, metadata=metadata)
+    report = build_report(
+        module=module,
+        target="http://example.com",
+        findings=findings,
+        severity=severity,
+        metadata=metadata,
+    )
     out = tmp_path / f"{module}.json"
     Reporter().save(report, out)
     loaded = Reporter().load(out)
@@ -115,7 +160,11 @@ def test_generate_scan_summary_reads_normalized_envelope():
 
 def test_generate_scan_summary_backward_compatible_with_legacy_layout():
     """Reports saved before the envelope (top-level 'modules') still summarize."""
-    legacy = {"target": "http://example.com", "scan_time": "2026-01-01T00:00:00", "modules": make_modules()}
+    legacy = {
+        "target": "http://example.com",
+        "scan_time": "2026-01-01T00:00:00",
+        "modules": make_modules(),
+    }
     summary = generate_scan_summary(legacy)
     assert summary["vulnerabilities_found"] == 2
     assert summary["total_requests"] == 150

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-from pynzor.utils.http_client import HTTPClient, ClientConfig, Response
+from pynzor.utils.http_client import HTTPClient, ClientConfig
 
 
 SECURITY_HEADERS = {
@@ -93,9 +93,7 @@ class HeaderResult:
     missing_headers: list[str] = field(default_factory=list)
 
 
-async def analyze_headers(
-    target: str, http_client: HTTPClient | None = None
-) -> HeaderResult:
+async def analyze_headers(target: str, http_client: HTTPClient | None = None) -> HeaderResult:
     """Fetch a target and grade its HTTP security headers.
 
     Checks for a standard set of security headers, deducts points per missing

@@ -66,7 +66,18 @@ def test_fuzz_command_finds_known_path(http_fixture, tmp_path):
     wordlist.write_text("admin\nmissing\n")
     result = runner.invoke(
         app,
-        ["fuzz", "-t", http_fixture, "-w", str(wordlist), "-o", str(tmp_path), "--no-color", "-x", ""],
+        [
+            "fuzz",
+            "-t",
+            http_fixture,
+            "-w",
+            str(wordlist),
+            "-o",
+            str(tmp_path),
+            "--no-color",
+            "-x",
+            "",
+        ],
     )
     assert result.exit_code == 0, result.output
     report = _load_only_report(tmp_path, "fuzz")

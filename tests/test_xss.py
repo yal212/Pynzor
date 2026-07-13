@@ -40,7 +40,11 @@ async def test_test_payload_no_reflection():
             return_value=httpx.Response(200, text="<html><body>clean</body></html>")
         )
         async with client:
-            result = await _test_payload(client, "http://example.com/?x=<script>alert(1)</script>", "<script>alert(1)</script>")
+            result = await _test_payload(
+                client,
+                "http://example.com/?x=<script>alert(1)</script>",
+                "<script>alert(1)</script>",
+            )
     assert result is None
 
 
@@ -198,6 +202,7 @@ async def test_post_form_scanning():
         )
         async with client:
             from pynzor.modules.xss import _test_payload_post, _extract_forms
+
             page_html = '<html><body><form action="/submit" method="post"><input name="msg"></form></body></html>'
             forms = _extract_forms(page_html, "http://example.com")
             result = await _test_payload_post(

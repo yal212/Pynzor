@@ -1,5 +1,3 @@
-import asyncio
-
 from . import scanner as _scanner
 from . import fuzzer as _fuzzer
 from . import headers as _headers
@@ -100,10 +98,11 @@ async def analyze(target: str, http_client: HTTPClient | None = None):
     return await _headers.analyze_headers(target, http_client)
 
 
-async def probe(target: str, http_client: HTTPClient | None = None):
+async def probe(target: str):
     """Public facade for SQL injection probing.
 
-    Delegates to :func:`modules.sqli.probe_sqli`.
+    Delegates to :func:`modules.sqli.probe_sqli`, which manages its own HTTP
+    client (a deliberately gentler probe with its own rate limit).
 
     Returns:
         A ``SQLiResult``.
@@ -111,10 +110,11 @@ async def probe(target: str, http_client: HTTPClient | None = None):
     return await _sqli.probe_sqli(target)
 
 
-async def detect(target: str, http_client: HTTPClient | None = None):
+async def detect(target: str):
     """Public facade for XSS detection.
 
-    Delegates to :func:`modules.xss.detect_xss`.
+    Delegates to :func:`modules.xss.detect_xss`, which manages its own HTTP
+    client (a deliberately gentler probe with its own rate limit).
 
     Returns:
         An ``XSSResult``.

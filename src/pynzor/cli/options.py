@@ -1,6 +1,4 @@
 import typer
-from typing import Optional
-from pathlib import Path
 
 target = typer.Option(
     ...,
@@ -53,11 +51,7 @@ wordlist = typer.Option(
     exists=True,
 )
 
-threads = typer.Option(
-    20,
-    "--threads",
-    help="Number of threads"
-)
+threads = typer.Option(20, "--threads", help="Number of threads")
 
 scan_threads = typer.Option(
     None,
