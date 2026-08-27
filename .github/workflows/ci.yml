@@ -77,5 +77,9 @@ jobs:
           "$BIN/Pynzor" --version
           "$BIN/Pynzor" --help
           "$BIN/Pynzor" headers --help
+          "$BIN/Pynzor" tui --help
+          # Bare invocation with no TTY must fall back to help, not try to
+          # start the full-screen dashboard.
+          "$BIN/Pynzor" < /dev/null 2>&1 | grep -q 'Usage: Pynzor'
           "$BIN/pynzor" --version
-          "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor')/'py.typed').is_file(); assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); print('bundled package data OK')"
+          "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor')/'py.typed').is_file(); assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); assert (r.files('pynzor.tui')/'styles.tcss').is_file(); print('bundled package data OK')"

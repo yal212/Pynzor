@@ -12,27 +12,38 @@ console = Console()
 class Formatter:
     """Rich-based console renderer for scan results and status messages."""
 
-    no_color = False
+    def __init__(self, console: Console | None = None, no_color: bool = False) -> None:
+        """Bind this formatter to a console.
+
+        Args:
+            console: Console to render to. Defaults to the module-level one,
+                which is what the CLI uses. A TUI passes its own so output
+                never escapes into the terminal behind the app.
+            no_color: Suppress color and live rendering. Instance state, not
+                class state, so two formatters cannot clobber each other.
+        """
+        self.console = console or globals()["console"]
+        self.no_color = no_color
 
     def print_header(self, text: str) -> None:
         """Print a boxed cyan header panel."""
-        console.print(Panel.fit(text, style="cyan", border_style="cyan"))
+        self.console.print(Panel.fit(text, style="cyan", border_style="cyan"))
 
     def print_success(self, message: str) -> None:
         """Print a success message in green."""
-        console.print(f"[green]{escape(message)}[/green]")
+        self.console.print(f"[green]{escape(message)}[/green]")
 
     def print_error(self, message: str) -> None:
         """Print an error message in red."""
-        console.print(f"[red]{escape(message)}[/red]")
+        self.console.print(f"[red]{escape(message)}[/red]")
 
     def print_warning(self, message: str) -> None:
         """Print a warning message in yellow."""
-        console.print(f"[yellow]{escape(message)}[/yellow]")
+        self.console.print(f"[yellow]{escape(message)}[/yellow]")
 
     def print_info(self, message: str) -> None:
         """Print an informational message in blue."""
-        console.print(f"[blue]{escape(message)}[/blue]")
+        self.console.print(f"[blue]{escape(message)}[/blue]")
 
     def print_scanner_results(self, result) -> None:
         """Render a port-scan result table, hiding closed ports."""
@@ -68,9 +79,9 @@ class Formatter:
                 row.append(version)
             row.append(f"{port.latency:.3f}s")
             table.add_row(*row)
-        console.print(table)
+        self.console.print(table)
         if hidden:
-            console.print(f"[dim]Not shown: {hidden} closed port(s)[/dim]")
+            self.console.print(f"[dim]Not shown: {hidden} closed port(s)[/dim]")
 
     def print_fuzzer_results(self, result) -> None:
         """Render fuzzing results, choosing the request- or directory-mode table."""
@@ -78,7 +89,7 @@ class Formatter:
 
         if getattr(result, "baseline_detected", False):
             note = getattr(result, "baseline_note", None) or "Catch-all baseline detected"
-            console.print(f"[yellow]![/yellow] {note}")
+            self.console.print(f"[yellow]![/yellow] {note}")
 
         def status_style(code: int) -> str:
             """Map an HTTP status code to a rich color name."""
@@ -105,8 +116,8 @@ class Formatter:
                     str(f.words),
                     str(f.lines),
                 )
-            console.print(table)
-            console.print(f"Found {len(result.found)} matching responses")
+            self.console.print(table)
+            self.console.print(f"Found {len(result.found)} matching responses")
             return
 
         table = Table(
@@ -126,11 +137,11 @@ class Formatter:
                 str(f.content_length),
             )
 
-        console.print(table)
-        console.print(f"Found {len(result.found)} directories")
+        self.console.print(table)
+        self.console.print(f"Found {len(result.found)} directories")
         filtered = getattr(result, "baseline_filtered", 0)
         if filtered:
-            console.print(
+            self.console.print(
                 f"[dim]Filtered {filtered} paths matching catch-all baseline "
                 "(use --no-baseline to disable)[/dim]"
             )
@@ -154,32 +165,32 @@ class Formatter:
             if not h.present:
                 missing.append(h.header)
 
-        console.print(table)
-        console.print(f"Score: {result.score}/100 (Grade: {result.grade})")
+        self.console.print(table)
+        self.console.print(f"Score: {result.score}/100 (Grade: {result.grade})")
         if missing:
-            console.print(f"Missing: {', '.join(missing)}")
+            self.console.print(f"Missing: {', '.join(missing)}")
 
     def print_sqli_results(self, result) -> None:
         """Print the SQL injection verdict and triggering payload if vulnerable."""
         if result.vulnerable:
-            console.print("[red]VULNERABLE to SQL Injection![/red]")
-            console.print(f"Payload: {result.payload}")
+            self.console.print("[red]VULNERABLE to SQL Injection![/red]")
+            self.console.print(f"Payload: {result.payload}")
         else:
-            console.print("[green]No SQL injection vulnerabilities found[/green]")
+            self.console.print("[green]No SQL injection vulnerabilities found[/green]")
 
     def print_xss_results(self, result) -> None:
         """Print the XSS verdict and triggering payload if vulnerable."""
         if result.vulnerable:
-            console.print("[red]VULNERABLE to XSS![/red]")
-            console.print(f"Payload: {result.payload}")
+            self.console.print("[red]VULNERABLE to XSS![/red]")
+            self.console.print(f"Payload: {result.payload}")
         else:
-            console.print("[green]No XSS vulnerabilities found[/green]")
+            self.console.print("[green]No XSS vulnerabilities found[/green]")
 
     def print_subdomain_results(self, result) -> None:
         """Render the subdomain table, plus wildcard-DNS notes and filter counts."""
         if getattr(result, "wildcard_detected", False):
             ips = ", ".join(getattr(result, "wildcard_ips", []))
-            console.print(
+            self.console.print(
                 f"[yellow]![/yellow] Wildcard DNS detected → {ips}. "
                 "Subdomains resolving to these IPs are filtered "
                 "(use --include-wildcard to show them)."
@@ -193,11 +204,11 @@ class Formatter:
             status = "responded" if getattr(s, "verified", False) else "discovered"
             table.add_row(getattr(s, "subdomain", ""), status)
 
-        console.print(table)
-        console.print(f"Found {len(result.subdomains)} subdomains")
+        self.console.print(table)
+        self.console.print(f"Found {len(result.subdomains)} subdomains")
         filtered = getattr(result, "wildcard_filtered", 0)
         if filtered:
-            console.print(f"[dim]Filtered {filtered} subdomains matching wildcard DNS[/dim]")
+            self.console.print(f"[dim]Filtered {filtered} subdomains matching wildcard DNS[/dim]")
 
 
 def format_title(text: str, style: str = "bold cyan") -> Text:

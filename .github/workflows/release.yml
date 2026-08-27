@@ -49,6 +49,7 @@ jobs:
           dist\Pynzor.exe --version
           dist\Pynzor.exe --help
           dist\Pynzor.exe headers --help
+          dist\Pynzor.exe tui --help
         shell: cmd
 
       - name: Upload to GitHub Release
@@ -81,6 +82,10 @@ jobs:
           ./dist/Pynzor --version
           ./dist/Pynzor --help
           ./dist/Pynzor headers --help
+          ./dist/Pynzor tui --help
+          # Bare invocation with no TTY must fall back to help, not try to
+          # start the full-screen dashboard.
+          ./dist/Pynzor < /dev/null 2>&1 | grep -q 'Usage: Pynzor'
 
       - name: Rename binary
         run: mv dist/Pynzor dist/Pynzor-macos
@@ -115,6 +120,10 @@ jobs:
           ./dist/Pynzor --version
           ./dist/Pynzor --help
           ./dist/Pynzor headers --help
+          ./dist/Pynzor tui --help
+          # Bare invocation with no TTY must fall back to help, not try to
+          # start the full-screen dashboard.
+          ./dist/Pynzor < /dev/null 2>&1 | grep -q 'Usage: Pynzor'
 
       - name: Rename binary
         run: mv dist/Pynzor dist/Pynzor-linux

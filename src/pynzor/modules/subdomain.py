@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import datetime
 from pynzor.utils.http_client import HTTPClient, ClientConfig
 from pynzor.utils.validators import extract_domain, extract_root_domain
+from pynzor.core.events import ProgressCallback, emit
 
 
 DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
@@ -85,6 +86,8 @@ async def enumerate_subdomains(
     threads: int = 20,
     check_http: bool = True,
     include_wildcard: bool = False,
+    on_progress: Optional[ProgressCallback] = None,
+    client_config: Optional[ClientConfig] = None,
 ) -> SubdomainScanResult:
     """Enumerate subdomains of a target from a wordlist via DNS (and optional HTTP).
 
@@ -99,6 +102,7 @@ async def enumerate_subdomains(
         check_http: Whether to attempt HTTP verification as a fallback.
         include_wildcard: If True, keep wildcard-matching results (flagged)
             instead of discarding them.
+        on_progress: Optional callback fired once per candidate resolved.
 
     Returns:
         A :class:`SubdomainScanResult` with discovered subdomains and stats.
@@ -108,7 +112,7 @@ async def enumerate_subdomains(
 
     root_domain = extract_root_domain(extract_domain(target))
 
-    config = ClientConfig(rate_limit=0.1)
+    config = client_config or ClientConfig(rate_limit=0.1)
     http_client = HTTPClient(config)
 
     subdomains = []
@@ -118,6 +122,8 @@ async def enumerate_subdomains(
     counter_lock = asyncio.Lock()
 
     resolver = _build_resolver()
+    total = len(wordlist)
+    emit(on_progress, "subdomain", 0, total, note="detecting wildcard DNS")
     wildcard_ips = await detect_wildcard(resolver, root_domain)
     if wildcard_ips:
         result.wildcard_detected = True
@@ -205,10 +211,16 @@ async def enumerate_subdomains(
 
     semaphore = asyncio.Semaphore(threads)
 
+    completed = {"done": 0}
+
     async def limited_check(sub: str) -> Optional[SubdomainResult]:
         """Run :func:`check_subdomain` under the concurrency semaphore."""
         async with semaphore:
-            return await check_subdomain(sub)
+            found = await check_subdomain(sub)
+        # `scanned` counts started work, so track completions separately.
+        completed["done"] += 1
+        emit(on_progress, "subdomain", completed["done"], total, found)
+        return found
 
     async with http_client:
         tasks = [limited_check(sub) for sub in wordlist]

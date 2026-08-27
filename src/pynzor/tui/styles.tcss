@@ -1,0 +1,131 @@
+/* Pynzor dashboard.
+
+   Two columns: a fixed module rail on the left, results on the right, with a
+   status line and the equivalent CLI command pinned under the results. */
+
+Screen {
+    layers: base;
+}
+
+#target {
+    dock: top;
+    height: 3;
+    border: round $accent;
+}
+
+#body {
+    height: 1fr;
+}
+
+#rail {
+    width: 34;
+    border-right: solid $panel-lighten-2;
+    padding: 0 1;
+}
+
+#main {
+    width: 1fr;
+    padding: 0 1;
+}
+
+.section {
+    color: $text-muted;
+    text-style: bold;
+    padding: 1 0 0 0;
+}
+
+#modules {
+    height: auto;
+    max-height: 14;
+    background: transparent;
+}
+
+#options {
+    height: 1fr;
+}
+
+.opt-label {
+    color: $text-muted;
+    padding: 1 0 0 0;
+}
+
+/* One rail entry: [x] glyph, label, right-aligned summary. */
+.rail-line {
+    height: 1;
+}
+
+.rail-glyph {
+    width: 4;
+}
+
+.rail-label {
+    width: 1fr;
+    padding-left: 1;
+}
+
+/* Fixed width, not auto: an auto width changes with the text, which would
+   force a layout pass on every progress repaint. 14 fits the longest real
+   summary ("640/1024", "12 found", "stopped"). */
+.rail-summary {
+    width: 14;
+    padding-left: 1;
+    color: $text-muted;
+    text-align: right;
+}
+
+ModuleRow.running .rail-glyph {
+    color: $warning;
+}
+
+ModuleRow.done .rail-glyph {
+    color: $success;
+}
+
+ModuleRow.failed .rail-glyph {
+    color: $error;
+}
+
+ModulePane {
+    height: 1fr;
+}
+
+.pane-progress {
+    height: 1;
+    color: $accent;
+}
+
+.pane-headline {
+    height: 2;
+    color: $text-muted;
+}
+
+DataTable {
+    height: 1fr;
+}
+
+#detail-scroll {
+    height: 1fr;
+}
+
+#detail {
+    padding: 1;
+}
+
+#statusbar {
+    dock: bottom;
+    height: 2;
+}
+
+#status {
+    height: 1;
+    color: $text-muted;
+    text-overflow: ellipsis;
+}
+
+/* The copyable equivalent CLI command -- the thing that teaches the CLI. */
+#preview {
+    height: 1;
+    color: $success;
+    background: $panel;
+    text-overflow: ellipsis;
+}

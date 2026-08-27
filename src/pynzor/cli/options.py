@@ -167,3 +167,10 @@ include_wildcard = typer.Option(
     "--include-wildcard",
     help="Include subdomains matching wildcard DNS (off by default to reduce false positives)",
 )
+
+tui_target = typer.Option(
+    None,
+    "--target",
+    "-t",
+    help="Pre-fill the dashboard's target field.",
+)
