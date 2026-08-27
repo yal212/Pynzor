@@ -14,9 +14,10 @@ from typing import Any
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, ScrollableContainer, Vertical, VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
+from textual.widget import Widget
 from textual.widgets import (
     Checkbox,
     DataTable,
@@ -29,15 +30,18 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
+    Tabs,
 )
 
 from pynzor.core import runner
 from pynzor.core.events import ProgressEvent
 from pynzor.core.parsing import parse_int_list
 from pynzor.output.reporter import Reporter
+from pynzor.tui.keymap import HelpScreen
 from pynzor.tui.preview import preview
 from pynzor.tui.rows import detail_lines, headline, row_for, rows_from_result
 from pynzor.tui.state import ModuleState, SessionState, Status
+from pynzor.tui.theme import PYNZOR_THEME
 
 STYLES = Path(__file__).parent / "styles.tcss"
 
@@ -136,10 +140,13 @@ class ModulePane(Vertical):
         module = self.module
         width = 28
         filled = int(width * module.percent / 100)
-        bar = "━" * filled + "╸" * (1 if filled < width else 0)
-        bar += "─" * max(0, width - filled - 1)
+        head = "╸" if filled < width else ""
+        track = "─" * max(0, width - filled - len(head))
         counts = f"{module.done}/{module.total}" if module.total else ""
         note = f"  {module.note}" if module.note else ""
+        # Markup, not extra widgets: the rendered width is unchanged, so this
+        # still repaints with `layout=False` and costs the budget nothing.
+        bar = f"[$success]{'━' * filled}{head}[/][$panel-lighten-2]{track}[/]"
         self.progress_text = f"{bar} {module.percent:5.1f}%  {counts}{note}"
         self.query_one(".pane-progress", Static).update(self.progress_text, layout=False)
 
@@ -171,14 +178,29 @@ class PynzorApp(App):
     CSS_PATH = STYLES
     TITLE = "Pynzor"
 
+    # Navigation is hidden from the Footer and documented in the `?` overlay
+    # instead: nine more keys down there would crowd out the ones that act.
+    # Letter keys are safe as global bindings because a focused Input consumes
+    # printable characters before they ever reach the app.
     BINDINGS = [
+        Binding("j,down", "nav('down')", "Down", show=False),
+        Binding("k,up", "nav('up')", "Up", show=False),
+        Binding("g", "nav('home')", "Top", show=False),
+        Binding("G", "nav('end')", "Bottom", show=False),
+        Binding("h", "focus_rail", "Rail", show=False),
+        Binding("l", "focus_results", "Results", show=False),
+        Binding("[,H", "prev_tab", "Prev tab", show=False),
+        Binding("],L", "next_tab", "Next tab", show=False),
+        Binding("i,t", "edit_target", "Edit target", show=False),
+        Binding("escape", "normal_mode", "Normal mode", show=False),
         Binding("r", "run", "Run"),
         Binding("s", "stop", "Stop"),
         Binding("space", "toggle_module", "Toggle"),
         Binding("o", "toggle_options", "Options"),
         Binding("e", "export", "Export"),
         Binding("b", "toggle_reports", "Reports"),
-        Binding("c", "copy_command", "Copy cmd"),
+        Binding("c", "copy_command", "Copy"),
+        Binding("?", "help", "Help"),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -193,7 +215,7 @@ class PynzorApp(App):
         # Static drops its source text; keep the detail body addressable.
         self.detail_text = ""
         self._report_paths: dict[str, Path] = {}
-        self._status = "Ready. Enter a target, pick modules, press r."
+        self._status = "Press i to set a target, space to pick modules, r to run."
 
     # ------------------------------------------------------------------ layout
 
@@ -207,9 +229,9 @@ class PynzorApp(App):
         )
         with Horizontal(id="body"):
             with Vertical(id="rail"):
-                yield Label("MODULES", classes="section")
+                # No in-panel headings: the rail and the options form carry
+                # their names in their borders, which costs no rows.
                 yield ListView(*(ModuleRow(m) for m in self.state.modules.values()), id="modules")
-                yield Label("OPTIONS", classes="section", id="options-title")
                 yield VerticalScroll(id="options")
             with Vertical(id="main"):
                 with TabbedContent(id="tabs"):
@@ -220,25 +242,32 @@ class PynzorApp(App):
                         yield VerticalScroll(Static("", id="detail"), id="detail-scroll")
                     with TabPane("Reports", id="tab-reports"):
                         yield ListView(id="reports")
-                # One container rather than two stacked docks: independently
-                # docked siblings lose a row to the app-level Footer.
-                yield Vertical(
-                    Static("", id="status"),
-                    Static("", id="preview"),
-                    id="statusbar",
-                )
-        yield Footer()
+        # Status, CLI preview, and Footer in one docked container. They describe
+        # the whole session, not the results panel, so they span both columns --
+        # and one container fixes the ordering that independent docks get wrong.
+        yield Vertical(
+            Static("", id="status"),
+            Static("", id="preview"),
+            Footer(),
+            id="statusbar",
+        )
 
     def on_mount(self) -> None:
         """Seed every widget from the initial session state."""
-        self.query_one("#options-title").display = False
+        self.register_theme(PYNZOR_THEME)
+        self.theme = "pynzor"
+        self.query_one("#rail").border_title = "Modules"
+        self.query_one("#main").border_title = "Results"
+        self.query_one("#target").border_title = "Target"
         self.query_one("#options").display = False
+        self.refresh_target_title()
         self.refresh_all()
         # 15 fps is well under what a terminal can show and far under the rate
         # progress events arrive at, which is exactly the point.
         self.set_interval(1 / 15, self._flush_progress)
-        if not self.state.target:
-            self.query_one("#target", Input).focus()
+        # Normal mode: the rail holds focus so every letter key is a command.
+        # `i` is how you reach the target field.
+        self.query_one("#modules", ListView).focus()
 
     # ------------------------------------------------------------------ redraw
 
@@ -256,10 +285,24 @@ class PynzorApp(App):
         findings = self.state.total_findings
         selected = len(self.state.selected_modules)
         self.query_one("#status", Static).update(
-            f"{self._status}   ·   {selected} module(s) selected   ·   {findings} finding(s)",
+            f"[b]{self.mode}[/b] │ {self._status}"
+            f"   ·   {selected} module(s) selected   ·   {findings} finding(s)",
             layout=False,
         )
         self.query_one("#preview", Static).update(f"$ {preview(self.state)}", layout=False)
+
+    @property
+    def mode(self) -> str:
+        """Which vim-ish mode the app is in, derived from what holds focus."""
+        return "INSERT" if isinstance(self.focused, (Input, Checkbox)) else "NORMAL"
+
+    def refresh_target_title(self) -> None:
+        """Show the current target in the header.
+
+        Deliberately not called from any progress path: `sub_title` triggers a
+        layout pass, which the repaint budget cannot afford per event.
+        """
+        self.sub_title = self.state.target or "no target"
 
     def set_status(self, message: str) -> None:
         """Set the status line message and repaint."""
@@ -283,6 +326,7 @@ class PynzorApp(App):
             return
 
         self.state.target = self.query_one("#target", Input).value.strip()
+        self.refresh_target_title()
         if not self.state.target:
             self.set_status("Enter a target first.")
             self.query_one("#target", Input).focus()
@@ -464,6 +508,108 @@ class PynzorApp(App):
             pane.refresh_progress()
             self.row(module_id).refresh_row()
 
+    # -------------------------------------------------------------- navigation
+
+    def action_nav(self, direction: str) -> None:
+        """Move the cursor in whatever currently has focus.
+
+        One app-level binding per direction rather than a `j`/`k` binding on
+        every widget subclass: Textual's ListView and DataTable bind only the
+        arrow keys, so there is nothing to fight, and the Detail pane is a plain
+        scrollable that has no cursor at all.
+        """
+        target = self.focused
+        if isinstance(target, ListView):
+            self._nav_list(target, direction)
+        elif isinstance(target, DataTable):
+            self._nav_table(target, direction)
+        elif isinstance(target, ScrollableContainer):
+            self._nav_scroll(target, direction)
+
+    @staticmethod
+    def _nav_list(listview: ListView, direction: str) -> None:
+        """Move a ListView cursor; `index` is the only way to jump to an end."""
+        if direction == "down":
+            listview.action_cursor_down()
+        elif direction == "up":
+            listview.action_cursor_up()
+        elif direction == "home":
+            listview.index = 0
+        elif len(listview.children):
+            listview.index = len(listview.children) - 1
+
+    @staticmethod
+    def _nav_table(table: DataTable, direction: str) -> None:
+        """Move a DataTable row cursor."""
+        if direction == "down":
+            table.action_cursor_down()
+        elif direction == "up":
+            table.action_cursor_up()
+        elif direction == "home":
+            table.action_scroll_top()
+        else:
+            table.action_scroll_bottom()
+
+    @staticmethod
+    def _nav_scroll(container: ScrollableContainer, direction: str) -> None:
+        """Scroll a cursorless pane. Never animate: `g`/`G` should land at once."""
+        if direction == "down":
+            container.scroll_down(animate=False)
+        elif direction == "up":
+            container.scroll_up(animate=False)
+        elif direction == "home":
+            container.scroll_home(animate=False)
+        else:
+            container.scroll_end(animate=False)
+
+    def action_focus_rail(self) -> None:
+        """`h` — jump back to the module rail from anywhere."""
+        self.query_one("#modules", ListView).focus()
+
+    def action_focus_results(self) -> None:
+        """`l` — jump into the active tab's content.
+
+        Walks for the first focusable descendant rather than naming a widget
+        type, so the module tables, the Detail scroll, and the Reports list all
+        work through the same key.
+        """
+        pane = self.query_one("#tabs", TabbedContent).active_pane
+        if pane is None:
+            return
+        for widget in pane.walk_children(Widget):
+            if widget.focusable:
+                widget.focus()
+                return
+
+    def action_next_tab(self) -> None:
+        """`]` — the next result tab."""
+        self.query_one("#tabs", TabbedContent).query_one(Tabs).action_next_tab()
+
+    def action_prev_tab(self) -> None:
+        """`[` — the previous result tab."""
+        self.query_one("#tabs", TabbedContent).query_one(Tabs).action_previous_tab()
+
+    def action_edit_target(self) -> None:
+        """`i` — insert mode: type into the target field."""
+        self.query_one("#target", Input).focus()
+
+    def action_normal_mode(self) -> None:
+        """Escape — leave a text field so single-key commands work again."""
+        if isinstance(self.focused, (Input, Checkbox)):
+            self.query_one("#modules", ListView).focus()
+
+    def action_help(self) -> None:
+        """`?` — the keybinding cheatsheet."""
+        self.push_screen(HelpScreen())
+
+    def on_descendant_focus(self) -> None:
+        """Repaint the mode badge when focus moves into a widget."""
+        self.refresh_status()
+
+    def on_descendant_blur(self) -> None:
+        """Repaint the mode badge when focus leaves a widget."""
+        self.refresh_status()
+
     # ----------------------------------------------------------------- actions
 
     def action_toggle_module(self) -> None:
@@ -478,15 +624,16 @@ class PynzorApp(App):
 
     def action_toggle_options(self) -> None:
         """Show or hide the options form for the highlighted module."""
-        title, panel = self.query_one("#options-title"), self.query_one("#options")
+        panel = self.query_one("#options")
         if panel.display:
-            title.display = panel.display = False
+            panel.display = False
             return
         item = self.query_one("#modules", ListView).highlighted_child
         if not isinstance(item, ModuleRow):
             return
         self.build_options(item.module)
-        title.display = panel.display = True
+        panel.border_title = f"Options — {item.module.spec.label}"
+        panel.display = True
 
     def build_options(self, module: ModuleState) -> None:
         """Render the options form for one module, seeded from its current values."""
@@ -529,6 +676,7 @@ class PynzorApp(App):
         if not widget_id or not widget_id.startswith("opt-"):
             if widget_id == "target":
                 self.state.target = str(value).strip()
+                self.refresh_target_title()
                 self.refresh_status()
             return
         _, module_id, key = widget_id.split("-", 2)
@@ -551,6 +699,15 @@ class PynzorApp(App):
         body = "\n".join(f"{label.rjust(width)} : {value}" for label, value in pairs)
         self.detail_text = f"{module.spec.label} finding\n\n{body}" if body else "No detail."
         self.query_one("#detail", Static).update(self.detail_text)
+
+    @on(DataTable.RowSelected)
+    def open_detail(self) -> None:
+        """Enter on a finding brings the Detail tab forward.
+
+        `RowHighlighted` already fills Detail in, but that tab is behind the
+        module tabs, so without this the drill-down happens off-screen.
+        """
+        self.query_one("#tabs", TabbedContent).active = "tab-detail"
 
     async def action_export(self) -> None:
         """Write a JSON report for every module that produced one."""

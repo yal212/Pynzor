@@ -68,18 +68,38 @@ uv run Pynzor --help
 Run `Pynzor` with no arguments in a terminal and you get the dashboard:
 
 ```
-┌─ Pynzor ───────────────────────────── https://target.lab ─┐
-│ MODULES          │ ━━━━━━━━━━━━━━━━━━╸───────  62.5%  640/1024
-│ ◉ ✔ Ports 2 open │ 2 open of 1024 scanned
-│ ◉ ▸ Fuzz   4 hits│
-│ ◉ ✔ Headers  9   │  Port   Status  Service  Version
-│ ○ · SQLi         │  22     open    ssh      OpenSSH 9.6
-│ ○ · XSS          │  80     open    http     nginx 1.25
-│ ○ · Subdomains   │
-│                  │ $ Pynzor ports -t https://target.lab -sV
-└──────────────────┴────────────────────────────────────────┘
- r Run  s Stop  space Toggle  o Options  e Export  b Reports  c Copy cmd  q Quit
+ Pynzor                                          https://target.lab
+╭─ Modules ───────────────╮╭─ Results ─────────────────────────────╮
+│ ◉ ✔ Ports      2 open   ││  Ports  Fuzz  Headers  Detail  Reports│
+│ ◉ ▸ Fuzz      640/1024  ││ ━━━━━━━━━━━━━━━╸────────  62.5%  640/1│
+│ ◉ ✔ Headers    9 found  ││ 2 open of 1024 scanned                │
+│ ○ · SQLi                ││  Port  Status  Service  Version       │
+│ ○ · XSS                 ││  22    open    ssh      OpenSSH 9.6   │
+│ ○ · Subdomains          ││  80    open    http     nginx 1.25    │
+╰─────────────────────────╯╰───────────────────────────────────────╯
+ NORMAL │ Running 3 module(s)   ·   3 module(s) selected   ·   11 fin
+ $ Pynzor ports -t https://target.lab -sV
+ r Run  s Stop  space Toggle  o Options  e Export  b Reports  ? Help
 ```
+
+It is keyboard-first and modal, like `lazygit` or `yazi`: it starts in normal
+mode with the module rail focused, so every letter is a command. Press `?` at
+any time for the full cheatsheet.
+
+| Key | Does |
+| --- | --- |
+| `j` / `k` | Move down / up in the focused panel |
+| `g` / `G` | Jump to top / bottom |
+| `h` / `l` | Focus the module rail / the results panel |
+| `[` / `]` | Previous / next result tab |
+| `enter` | Open the highlighted finding in Detail |
+| `space` | Toggle the highlighted module in or out of the next run |
+| `r` / `s` | Run the selected modules / stop an in-flight run |
+| `o` | Options for the highlighted module |
+| `e` / `b` | Export JSON reports / browse saved ones |
+| `c` | Copy the equivalent CLI command |
+| `i` / `t` | Edit the target (insert mode); `esc` returns to normal mode |
+| `?` / `q` | This cheatsheet / quit |
 
 What it does:
 
@@ -88,7 +108,9 @@ What it does:
   than appearing all at once at the end.
 - **Pick your modules** — `space` toggles a module in or out of the next run;
   `r` runs the selected set, `s` cancels mid-flight.
-- **Drill into any finding** — select a row to open the Detail tab with the
+- **Vim navigation** — `hjkl` moves between panels and rows, `[`/`]` cycles
+  tabs, `g`/`G` jump to the ends. The focused panel wears the accent border.
+- **Drill into any finding** — `enter` on a row opens the Detail tab with the
   full evidence, payload, banner, or remediation note the summary table clips.
 - **Edit options in place** — `o` opens a form for the highlighted module
   (ports range, wordlist, threads, filters), seeded from your `config.yaml`.

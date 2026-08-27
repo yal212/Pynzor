@@ -1,7 +1,9 @@
 /* Pynzor dashboard.
 
-   Two columns: a fixed module rail on the left, results on the right, with a
-   status line and the equivalent CLI command pinned under the results. */
+   Two bordered panels: a fixed module rail on the left, results on the right,
+   with a status line and the equivalent CLI command pinned under them. The
+   panel holding focus wears the accent border -- that is the only cue telling
+   you where j/k will land. */
 
 Screen {
     layers: base;
@@ -10,28 +12,38 @@ Screen {
 #target {
     dock: top;
     height: 3;
+    border: round $panel-lighten-2;
+    border-title-color: $text-muted;
+}
+
+#target:focus {
     border: round $accent;
+    border-title-color: $accent;
 }
 
 #body {
     height: 1fr;
 }
 
+/* 36, not 34: a full border eats two columns, and the rail line still has to
+   fit a 4-wide glyph, the label, and the 14-wide summary. */
 #rail {
-    width: 34;
-    border-right: solid $panel-lighten-2;
+    width: 36;
+    border: round $panel-lighten-2;
+    border-title-color: $text-muted;
     padding: 0 1;
 }
 
 #main {
     width: 1fr;
+    border: round $panel-lighten-2;
+    border-title-color: $text-muted;
     padding: 0 1;
 }
 
-.section {
-    color: $text-muted;
-    text-style: bold;
-    padding: 1 0 0 0;
+#rail:focus-within, #main:focus-within {
+    border: round $accent;
+    border-title-color: $accent;
 }
 
 #modules {
@@ -42,6 +54,9 @@ Screen {
 
 #options {
     height: 1fr;
+    border: round $panel-lighten-2;
+    border-title-color: $text-muted;
+    padding: 0 1;
 }
 
 .opt-label {
@@ -85,6 +100,11 @@ ModuleRow.failed .rail-glyph {
     color: $error;
 }
 
+/* The tab strip doubles as the results panel's heading, so keep it tight. */
+#tabs Tab {
+    padding: 0 1;
+}
+
 ModulePane {
     height: 1fr;
 }
@@ -113,7 +133,7 @@ DataTable {
 
 #statusbar {
     dock: bottom;
-    height: 2;
+    height: 3;
 }
 
 #status {
@@ -128,4 +148,49 @@ DataTable {
     color: $success;
     background: $panel;
     text-overflow: ellipsis;
+}
+
+/* The `?` cheatsheet: a centred card over a dimmed dashboard. */
+HelpScreen {
+    align: center middle;
+    background: $background 60%;
+}
+
+#help-card {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 100%;
+    border: round $accent;
+    border-title-color: $accent;
+    border-subtitle-color: $text-muted;
+    background: $surface;
+    padding: 1 2;
+}
+
+#help-scroll {
+    width: auto;
+    height: auto;
+    max-height: 100%;
+}
+
+#help-body {
+    width: auto;
+    height: auto;
+}
+
+.help-column {
+    width: auto;
+    height: auto;
+}
+
+/* Gutter between the two columns; Textual CSS has no sibling selector. */
+#help-col-1 {
+    padding-left: 3;
+}
+
+.help-section {
+    width: auto;
+    height: auto;
+    padding-bottom: 1;
 }

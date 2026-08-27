@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vim keybindings and a `?` cheatsheet in the dashboard.** It now starts in
+  normal mode with the module rail focused, so every letter is a command
+  instead of being swallowed by the target field. `hjkl` moves between panels
+  and rows, `g`/`G` jump to the ends, `[`/`]` cycle result tabs, `i`/`t` enter
+  the target (insert mode) and `esc` leaves it, and `enter` on a finding brings
+  the Detail tab forward. `?` opens a grouped keybinding overlay that fits an
+  80x24 terminal without scrolling.
 - **Interactive dashboard.** Running `Pynzor` with no arguments in a terminal
   now launches a full-screen Textual app: pick modules, watch per-module
   progress bars fill and hits stream into tables live, drill into any finding,
@@ -60,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   equivalent in the form yet.
 
 ### Changed
+- The dashboard's panels are now bordered and titled, and the one holding focus
+  wears the accent border. The status line, CLI preview, and key hints span the
+  full width instead of sitting inside the results panel, and the app pins its
+  own colour theme so the palette is the same on every terminal.
 - Rate limit and timeout are now configurable per module (`fuzzer.rate_limit`
   and `subdomain.rate_limit` added to `config.yaml` at their existing values),
   resolved through `pynzor.core.runner.client_config_for` so the CLI and the
@@ -82,10 +93,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extended it to collect Textual's data files and dynamically-resolved widgets.
 
 ### Dependencies
-- Added `textual>=0.79`. It is pure Python with no compiled extensions, comes
+- Added `textual>=1.0`. It is pure Python with no compiled extensions, comes
   from the authors of `rich` (already a dependency), and reuses that renderer —
   hand-rolling the dashboard on `rich.Live` would have cost far more code for a
-  worse result.
+  worse result. The floor is 1.0 rather than 0.79 because the stylesheet uses
+  `text-overflow` and the app registers a `textual.theme.Theme`, neither of
+  which exists in 0.79.
 
 ## [1.1.0] - 2026-06-18
 

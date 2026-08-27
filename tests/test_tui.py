@@ -7,11 +7,12 @@ so these cover the whole path from a keypress to an exported report envelope.
 import json
 
 import pytest
-from textual.widgets import TabbedContent
+from textual.widgets import Input, ListView, TabbedContent
 
 from pynzor.cli.main import is_interactive
 from pynzor.core.config import load_config
 from pynzor.tui.app import PynzorApp
+from pynzor.tui.keymap import HelpScreen, keymap_keys
 from pynzor.tui.preview import preview
 from pynzor.tui.rows import detail_lines, headline, row_for
 from pynzor.tui.state import SessionState, Status
@@ -32,7 +33,11 @@ def only(app: PynzorApp, *module_ids: str) -> None:
 
 
 async def focus_rail(pilot, app: PynzorApp) -> None:
-    """Move focus off the target Input so single-key bindings are reachable."""
+    """Put focus on the module rail.
+
+    A no-op since the app mounts in normal mode, but kept so each test stays
+    explicit about needing single-key bindings to be reachable.
+    """
     app.query_one("#modules").focus()
     await pilot.pause()
 
@@ -223,6 +228,131 @@ async def test_toggle_deselects_a_module(tui_config):
         await pilot.press("space")
         await pilot.pause()
         assert len(app.state.selected_modules) == 5
+
+
+async def test_starts_in_normal_mode(tui_config):
+    """Letters must be commands on mount, not text.
+
+    The target Input used to grab focus and swallow every printable key, so
+    `r`, `space`, and `o` silently did nothing until focus moved.
+    """
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.focused is app.query_one("#modules")
+        assert app.mode == "NORMAL"
+
+        await pilot.press("i")
+        await pilot.pause()
+        assert app.focused is app.query_one("#target", Input)
+        assert app.mode == "INSERT"
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.focused is app.query_one("#modules")
+        assert app.mode == "NORMAL"
+
+
+async def test_jk_and_gG_move_the_rail_cursor(tui_config):
+    """hjkl navigation drives the rail without touching the arrow keys."""
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await focus_rail(pilot, app)
+        rail = app.query_one("#modules", ListView)
+
+        await pilot.press("j", "j", "k")
+        await pilot.pause()
+        assert rail.index == 1
+
+        await pilot.press("G")
+        await pilot.pause()
+        assert rail.index == len(app.state.modules) - 1
+
+        await pilot.press("g")
+        await pilot.pause()
+        assert rail.index == 0
+
+
+async def test_hl_switches_panels(tui_config):
+    """`l` moves into the results panel and `h` comes back to the rail."""
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await focus_rail(pilot, app)
+
+        await pilot.press("l")
+        await pilot.pause()
+        focused = app.focused
+        assert focused is not None
+        assert app.query_one("#main") in focused.ancestors
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert app.focused is app.query_one("#modules")
+
+
+async def test_brackets_switch_tabs(tui_config):
+    """`[` and `]` cycle result tabs, so the mouse is never required."""
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await focus_rail(pilot, app)
+        tabs = app.query_one("#tabs", TabbedContent)
+        first = tabs.active
+
+        await pilot.press("]")
+        await pilot.pause()
+        assert tabs.active != first
+
+        await pilot.press("[")
+        await pilot.pause()
+        assert tabs.active == first
+
+
+async def test_help_overlay_opens_and_closes(tui_config):
+    """`?` shows the cheatsheet and Esc dismisses it."""
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await focus_rail(pilot, app)
+
+        await pilot.press("?")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, HelpScreen)
+
+
+def test_help_documents_every_binding():
+    """Guard against help text drifting away from the bindings it describes.
+
+    Arrow and shifted aliases are excluded: they exist so muscle memory works,
+    not because they are worth a line in the cheatsheet.
+    """
+    aliases = {"down", "up", "tab", "H", "L"}
+    documented = keymap_keys()
+    for binding in PynzorApp.BINDINGS:
+        assert not isinstance(binding, tuple)
+        for key in binding.key.split(","):
+            key = key.strip()
+            if key in aliases:
+                continue
+            assert key in documented, f"{key} is bound but missing from KEYMAP"
+
+
+async def test_enter_on_a_finding_opens_detail(http_fixture, tui_config):
+    """Drilling in has to be visible: Detail sits behind the module tabs."""
+    app = PynzorApp(tui_config, target=http_fixture)
+    async with app.run_test() as pilot:
+        only(app, "headers")
+        await run_and_wait(pilot, app)
+
+        table = app.pane("headers").table
+        assert table.row_count
+        table.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.query_one("#tabs", TabbedContent).active == "tab-detail"
+        assert app.detail_text
 
 
 async def test_options_panel_seeds_from_config(tui_config):
