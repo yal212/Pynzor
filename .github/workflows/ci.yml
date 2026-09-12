@@ -89,4 +89,14 @@ jobs:
           sed "s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g" bare-run.txt > bare-run-plain.txt
           grep -q 'Usage: Pynzor' bare-run-plain.txt || { cat bare-run.txt; exit 1; }
           "$BIN/pynzor" --version
+          # A Windows console hands the process a legacy code page, and the
+          # Windows binary is only built at release time -- so a banner that
+          # cannot be encoded took down every command but --version, and the
+          # first anyone knew of it was a failed release tag. Exercise the same
+          # encoding here, where it costs a second. `report` is included
+          # because it renders Rich's box-drawing output, not just the banner.
+          PYTHONIOENCODING=cp1252 "$BIN/Pynzor" --help > /dev/null
+          PYTHONIOENCODING=cp1252 "$BIN/Pynzor" --version > /dev/null
+          PYTHONIOENCODING=cp1252 "$BIN/Pynzor" report \
+            "$GITHUB_WORKSPACE/docs/samples/sample_report.json" > /dev/null
           "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor')/'py.typed').is_file(); assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); assert (r.files('pynzor.tui')/'styles.tcss').is_file(); print('bundled package data OK')"

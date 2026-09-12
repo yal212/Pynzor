@@ -71,6 +71,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CHANGELOG.md` and `RELEASING.md`.
 
 ### Fixed
+- **Every command except `--version` crashed on Windows.** The startup banner is
+  drawn with block characters, and a Windows console hands the process a legacy
+  code page (cp1252/cp437) that cannot encode them, so `print(BANNER)` raised
+  `UnicodeEncodeError` and took the command down with it — `--version` survived
+  only because it is the one path that skips the banner. Affected the standalone
+  Windows binary and `pip install` alike, for as long as the banner has existed.
+  stdout and stderr are now switched to UTF-8 before anything is printed, and
+  the banner degrades to an ASCII rendering of itself on a console that still
+  cannot take it. Note that routing it through Rich would not have helped: Rich
+  raises on the same stream. Guarded by tests that print through a cp1252 stream
+  and by a CI smoke run under `PYTHONIOENCODING=cp1252`, which reproduces the
+  Windows failure without a Windows runner.
 - **Dashboard lag.** `Static.update()` defaults to `layout=True`, so every
   progress repaint forced a full-screen layout pass — 535 of them (33.8/s)
   during a default fuzz run. Fixed-size updates now pass `layout=False`, and

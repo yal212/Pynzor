@@ -50,6 +50,7 @@ jobs:
           dist\Pynzor.exe --help
           dist\Pynzor.exe headers --help
           dist\Pynzor.exe tui --help
+          dist\Pynzor.exe report docs\samples\sample_report.json
         shell: cmd
 
       - name: Upload to GitHub Release
@@ -83,6 +84,9 @@ jobs:
           ./dist/Pynzor --help
           ./dist/Pynzor headers --help
           ./dist/Pynzor tui --help
+          # Renders Rich's box-drawing output, which the --help screens alone
+          # do not fully cover, and needs no network.
+          ./dist/Pynzor report docs/samples/sample_report.json > /dev/null
           # Bare invocation with no TTY must fall back to help, not try to
           # start the full-screen dashboard. Three things this has to survive:
           # the run exits non-zero by design (Click's "Missing command"), Rich
@@ -128,6 +132,9 @@ jobs:
           ./dist/Pynzor --help
           ./dist/Pynzor headers --help
           ./dist/Pynzor tui --help
+          # Renders Rich's box-drawing output, which the --help screens alone
+          # do not fully cover, and needs no network.
+          ./dist/Pynzor report docs/samples/sample_report.json > /dev/null
           # Bare invocation with no TTY must fall back to help, not try to
           # start the full-screen dashboard. Three things this has to survive:
           # the run exits non-zero by design (Click's "Missing command"), Rich
