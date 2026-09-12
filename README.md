@@ -70,43 +70,24 @@ out like `lazygit`: a column of side panels you jump to by number, a main panel
 that always shows whatever the focused panel is pointing at, a command log, and
 a bottom bar listing the keys that work *right here*.
 
-```
-╭─ 1 Status ─────────────────╮╭─ Ports — Findings │ Report ────────────────────╮
-│ https://target.lab         ││ ━━━━━━━━━━━━━━╸────────────  62.5%  640/1024   │
-│ 6/6 modules · 11 findings  ││ 2 open of 1024 scanned                         │
-╰────────────────────────────╯│                                                │
-╭─ 2 Modules ────────────────╮│  Port  Status  Service  Version                │
-│ ◉ ✔  Ports          2 open ││  22    open    ssh      OpenSSH 9.6            │
-│ ◉ ▸  Fuzz         640/1024 ││  80    open    http     nginx 1.25             │
-╰────────────────────────────╯│                                                │
-╭─ 3 Options — Ports ────────╮│                                                │
-│ Ports            21,22,23… ││                                                │
-│ Concurrency             50 ││                                                │
-│ Service                 on ││                                                │
-╰────────────────────────────╯│                                                │
-╭─ 4 Findings ───────────────╮│                                                │
-│ Headers  X-Frame-Options   ││                                                │
-│ Headers  Content-Security… ││                                                │
-│ Fuzz     /admin  301       ││                                                │
-╰────────────────────────────╯╰────────────────────────────────────────────────╯
-╭─ 5 Reports ────────────────╮╭─ Command log ──────────────────────────────────╮
-│ ports_20260601_170458.js   ││ $ Pynzor ports -t https://target.lab -sV       │
-│ fuzz_20260619_000151.jso   ││ $ Pynzor fuzz -t https://target.lab            │
-│ headers_20260601_1701.js   ││                                                │
-╰────────────────────────────╯╰────────────────────────────────────────────────╯
-<space>: Toggle module, <enter>: Open results, r: Run, x: Menu, ?… Pynzor 1.1.0 
-```
+![The Pynzor dashboard mid-scan: a column of five numbered panels — Status, Modules, Options, Findings, Reports — beside a results table of fuzzing hits, with a command log showing the equivalent Pynzor CLI commands and a row of keybindings along the bottom.](https://raw.githubusercontent.com/yal212/Pynzor/main/docs/images/dashboard.svg)
 
 Five side panels, numbered in their borders, jumped to with `1`-`5` or cycled
 with `<tab>`; `l` and `h` move between the column and the main panel. All five
 stay open and share the height, as `lazygit` does, so focus moves the border
-rather than reflowing the column. The layout above is the real one at 80x24 —
-the smallest terminal it targets, where each panel gets two or three rows and
-scrolls.
+rather than reflowing the column. It also fits 80x24, the smallest terminal it
+targets, where each panel is down to two or three rows and scrolls.
+
+That screenshot is generated, not drawn: `docs/images/make_screenshot.py` runs
+the real dashboard against a local HTTP fixture, lets a scan finish, and exports
+what Textual rendered. Regenerate it with
+`uv run python docs/images/make_screenshot.py` whenever the layout changes.
 
 Colours come from your terminal, not from Pynzor: the dashboard draws in the
 sixteen ANSI colours and leaves the background alone, so it picks up your
-theme and stays translucent if your terminal is.
+theme and stays translucent if your terminal is. A static image has to commit
+to one palette, so the screenshot above is not what it will look like for you —
+it will look like your terminal.
 
 | # | Panel | The main panel then shows |
 | --- | --- | --- |
