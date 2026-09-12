@@ -65,59 +65,128 @@ uv run Pynzor --help
 
 ## Dashboard
 
-Run `Pynzor` with no arguments in a terminal and you get the dashboard:
+Run `Pynzor` with no arguments in a terminal and you get the dashboard, laid
+out like `lazygit`: a column of side panels you jump to by number, a main panel
+that always shows whatever the focused panel is pointing at, a command log, and
+a bottom bar listing the keys that work *right here*.
 
 ```
- Pynzor                                          https://target.lab
-╭─ Modules ───────────────╮╭─ Results ─────────────────────────────╮
-│ ◉ ✔ Ports      2 open   ││  Ports  Fuzz  Headers  Detail  Reports│
-│ ◉ ▸ Fuzz      640/1024  ││ ━━━━━━━━━━━━━━━╸────────  62.5%  640/1│
-│ ◉ ✔ Headers    9 found  ││ 2 open of 1024 scanned                │
-│ ○ · SQLi                ││  Port  Status  Service  Version       │
-│ ○ · XSS                 ││  22    open    ssh      OpenSSH 9.6   │
-│ ○ · Subdomains          ││  80    open    http     nginx 1.25    │
-╰─────────────────────────╯╰───────────────────────────────────────╯
- NORMAL │ Running 3 module(s)   ·   3 module(s) selected   ·   11 fin
- $ Pynzor ports -t https://target.lab -sV
- r Run  s Stop  space Toggle  o Options  e Export  b Reports  ? Help
+╭─ 1 Status ─────────────────╮╭─ Ports — Findings │ Report ────────────────────╮
+│ https://target.lab         ││ ━━━━━━━━━━━━━━╸────────────  62.5%  640/1024   │
+│ 6/6 modules · 11 findings  ││ 2 open of 1024 scanned                         │
+╰────────────────────────────╯│                                                │
+╭─ 2 Modules ────────────────╮│  Port  Status  Service  Version                │
+│ ◉ ✔  Ports          2 open ││  22    open    ssh      OpenSSH 9.6            │
+│ ◉ ▸  Fuzz         640/1024 ││  80    open    http     nginx 1.25             │
+╰────────────────────────────╯│                                                │
+╭─ 3 Options — Ports ────────╮│                                                │
+│ Ports            21,22,23… ││                                                │
+│ Concurrency             50 ││                                                │
+│ Service                 on ││                                                │
+╰────────────────────────────╯│                                                │
+╭─ 4 Findings ───────────────╮│                                                │
+│ Headers  X-Frame-Options   ││                                                │
+│ Headers  Content-Security… ││                                                │
+│ Fuzz     /admin  301       ││                                                │
+╰────────────────────────────╯╰────────────────────────────────────────────────╯
+╭─ 5 Reports ────────────────╮╭─ Command log ──────────────────────────────────╮
+│ ports_20260601_170458.js   ││ $ Pynzor ports -t https://target.lab -sV       │
+│ fuzz_20260619_000151.jso   ││ $ Pynzor fuzz -t https://target.lab            │
+│ headers_20260601_1701.js   ││                                                │
+╰────────────────────────────╯╰────────────────────────────────────────────────╯
+<space>: Toggle module, <enter>: Open results, r: Run, x: Menu, ?… Pynzor 1.1.0 
 ```
 
-It is keyboard-first and modal, like `lazygit` or `yazi`: it starts in normal
-mode with the module rail focused, so every letter is a command. Press `?` at
-any time for the full cheatsheet.
+Five side panels, numbered in their borders, jumped to with `1`-`5` or cycled
+with `<tab>`; `l` and `h` move between the column and the main panel. All five
+stay open and share the height, as `lazygit` does, so focus moves the border
+rather than reflowing the column. The layout above is the real one at 80x24 —
+the smallest terminal it targets, where each panel gets two or three rows and
+scrolls.
 
-| Key | Does |
-| --- | --- |
-| `j` / `k` | Move down / up in the focused panel |
-| `g` / `G` | Jump to top / bottom |
-| `h` / `l` | Focus the module rail / the results panel |
-| `[` / `]` | Previous / next result tab |
-| `enter` | Open the highlighted finding in Detail |
-| `space` | Toggle the highlighted module in or out of the next run |
-| `r` / `s` | Run the selected modules / stop an in-flight run |
-| `o` | Options for the highlighted module |
-| `e` / `b` | Export JSON reports / browse saved ones |
-| `c` | Copy the equivalent CLI command |
-| `i` / `t` | Edit the target (insert mode); `esc` returns to normal mode |
-| `?` / `q` | This cheatsheet / quit |
+Colours come from your terminal, not from Pynzor: the dashboard draws in the
+sixteen ANSI colours and leaves the background alone, so it picks up your
+theme and stays translucent if your terminal is.
+
+| # | Panel | The main panel then shows |
+| --- | --- | --- |
+| 1 | Status | The session: target, selection, findings, equivalent CLI command |
+| 2 | Modules | That module's progress, verdict, and findings table |
+| 3 | Options | The highlighted option's help, value, and `config.yaml` path |
+| 4 | Findings | The highlighted finding, expanded field by field |
+| 5 | Reports | The saved report envelope |
+
+Press `?` for the cheatsheet or `x` for a menu of everything available right
+now — you never have to remember a key to find one.
+
+### Keys
+
+| Key | Scope | Does |
+| --- | --- | --- |
+| `1` | Panels | Status panel |
+| `2` | Panels | Modules panel |
+| `3` | Panels | Options panel |
+| `4` | Panels | Findings panel |
+| `5` | Panels | Reports panel |
+| `<tab>` | Panels | Next panel |
+| `<s-tab>` | Panels | Previous panel |
+| `l` | Panels | Focus main panel |
+| `h` | Panels | Focus side panel |
+| `0` | Panels | Main view |
+| `j` | Navigation | Down |
+| `k` | Navigation | Up |
+| `g` | Navigation | Top |
+| `G` | Navigation | Bottom |
+| `.` | Navigation | Page down |
+| `,` | Navigation | Page up |
+| `<c-d>` | Navigation | Scroll main down |
+| `<c-u>` | Navigation | Scroll main up |
+| `<esc>` | Navigation | Back |
+| `r` | Run | Run |
+| `s` | Run | Stop |
+| `e` | Run | Export reports |
+| `c` | Run | Copy CLI command |
+| `+` | View | Bigger main panel |
+| `_` | View | Smaller main panel |
+| `@` | View | Command log |
+| `/` | View | Filter |
+| `x` | App | Menu |
+| `?` | App | Keybindings |
+| `<c-p>` | App | Command palette |
+| `q` | App | Quit |
+| `<enter>` | Status | Set target |
+| `<space>` | Modules | Toggle module |
+| `<enter>` | Modules | Open results |
+| `]` | Modules | Next tab |
+| `[` | Modules | Previous tab |
+| `<enter>` | Options | Edit value |
+| `d` | Options | Reset to config default |
+| `<enter>` | Findings | Expand |
+| `<enter>` | Reports | Open report |
+| `d` | Reports | Refresh listing |
+
+<!-- The table above is generated from `pynzor.tui.keymap`; a test asserts the
+     two agree, so edit the keymap rather than this table. -->
 
 What it does:
 
 - **Live progress** — per-module bars fill as ports, words, and payloads
   complete, and hits stream into the table the moment they are found rather
   than appearing all at once at the end.
-- **Pick your modules** — `space` toggles a module in or out of the next run;
-  `r` runs the selected set, `s` cancels mid-flight.
-- **Vim navigation** — `hjkl` moves between panels and rows, `[`/`]` cycles
-  tabs, `g`/`G` jump to the ends. The focused panel wears the accent border.
-- **Drill into any finding** — `enter` on a row opens the Detail tab with the
-  full evidence, payload, banner, or remediation note the summary table clips.
-- **Edit options in place** — `o` opens a form for the highlighted module
-  (ports range, wordlist, threads, filters), seeded from your `config.yaml`.
-- **Browse past reports** — `b` lists saved JSON reports newest first; select
-  one to load it back in.
-- **It teaches the CLI** — the footer always shows the exact equivalent
-  command for what you have configured. `c` copies it, ready for a writeup.
+- **The main panel follows you** — move the cursor in any side panel and the
+  right-hand side re-renders for whatever is under it. `<enter>` pushes focus
+  into it for a closer look, `<esc>` comes back, and `<c-d>`/`<c-u>` scroll it
+  without giving up your place in the list.
+- **Findings in one place** — panel `4` is every finding from the last run,
+  flattened across modules, with the full evidence, payload, banner, or
+  remediation note the summary table clips.
+- **Options are a panel, not a mode** — panel `3` always shows the options for
+  the module you are looking at, seeded from your `config.yaml`. `<enter>`
+  edits one, `d` puts the default back.
+- **It teaches the CLI** — the command log shows the exact `Pynzor <command>`
+  each module corresponds to as it runs. `c` copies it, ready for a writeup.
+- **Sized for real terminals** — `+`/`_` cycle the main panel between normal,
+  half, and full screen; `@` hides the command log; `/` filters a list.
 
 Export (`e`) writes the same `schema_version: 1` JSON the CLI writes, through
 the same reporter — dashboard output and `Pynzor <command>` output are

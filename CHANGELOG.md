@@ -8,13 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Vim keybindings and a `?` cheatsheet in the dashboard.** It now starts in
-  normal mode with the module rail focused, so every letter is a command
-  instead of being swallowed by the target field. `hjkl` moves between panels
-  and rows, `g`/`G` jump to the ends, `[`/`]` cycle result tabs, `i`/`t` enter
-  the target (insert mode) and `esc` leaves it, and `enter` on a finding brings
-  the Detail tab forward. `?` opens a grouped keybinding overlay that fits an
-  80x24 terminal without scrolling.
+- **A lazygit-shaped dashboard.** The two-panel layout is now a column of five
+  stacked side panels — Status, Modules, Options, Findings, Reports — jumped to
+  with `1`-`5` or cycled with `<tab>`, beside a main panel that always renders
+  whatever the focused panel's cursor is on. All five panels stay open and
+  share the height, as lazygit does by default, so focus moves the border
+  rather than reflowing the column; the jump numbers are drawn into the
+  borders. `<enter>` or `l` pushes focus into the main panel and `<esc>` or
+  `h` pops back; `<c-d>`/`<c-u>` scroll it without giving up your place in
+  the list.
+- **Context-sensitive keybinding bar.** The bottom row lists the keys that work
+  in the focused panel, with the app and version pinned right — replacing
+  Textual's single global footer. `x` opens a menu of every action available
+  right now, and `?` a cheatsheet grouped by scope.
+- **Command log panel.** The bottom-right panel transcribes the exact
+  `Pynzor <command>` each module corresponds to as it runs, plus what the run
+  did. `@` hides it.
+- **Findings panel.** Every finding from the last run, flattened across
+  modules, with its full detail in the main panel. `<enter>` on a results row
+  jumps straight to it.
+- **Popups for everything that is not navigation.** Setting the target,
+  editing an option, the action menu, and quitting mid-scan are all centred
+  modals, so text entry is the only place the app is ever in insert mode.
+- `+`/`_` cycle the main panel between normal, half, and full screen; `/`
+  filters a list panel.
+- **One keymap.** `pynzor.tui.keymap` is now the single source of truth for
+  every key: the app's bindings, each panel's bindings, the hint bar, the `x`
+  menu, the `?` card, and the README table are all generated from it, and
+  tests assert nothing is bound or documented outside it.
+- **The terminal's own colours.** The dashboard draws in the sixteen ANSI
+  colours and leaves the background alone, so it inherits your terminal theme
+  and a translucent terminal stays translucent behind it — lazygit's palette
+  mapped onto Pynzor's panels: green marks the focused border, blue the
+  selected row, and an unfocused panel marks its cursor with weight alone.
+  Note that `background: transparent` in Textual does not do this: it is
+  alpha-0 black and paints over the terminal. Only `ansi_default` gets
+  through.
 - **Interactive dashboard.** Running `Pynzor` with no arguments in a terminal
   now launches a full-screen Textual app: pick modules, watch per-module
   progress bars fill and hits stream into tables live, drill into any finding,
@@ -26,9 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pynzor.core`: a Typer-free service layer (`config`, `runner`, `models`,
   `events`, `parsing`) shared by the CLI and the dashboard, so both produce
   identical report envelopes from identical option resolution.
-- A footer in the dashboard showing the exact equivalent CLI command for the
-  current configuration, generated from the same flag metadata the options
-  form uses.
+- An equivalent-CLI-command line for the current configuration, generated from
+  the same flag metadata the options form uses, shown in the Status panel's
+  main view and written into the command log.
 - Command-level integration tests that run every command against a local HTTP
   fixture on `127.0.0.1`, with no external network access.
 - Pilot-driven tests for the dashboard and contract tests for the progress
