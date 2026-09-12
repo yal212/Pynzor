@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reproducible asciinema terminal demo (`docs/demo/pynzor-demo.cast`) plus a
   self-contained generator (`docs/demo/record_demo.py`) that records the flow
   against a local fixture.
+- Generated dashboard screenshot in the README (`docs/images/dashboard.svg`)
+  plus its generator (`docs/images/make_screenshot.py`), which runs the real
+  dashboard against a local fixture, lets a scan finish, and exports what
+  Textual rendered — replacing the hand-drawn ASCII mockup that could drift
+  from the actual layout.
 - `CHANGELOG.md` and `RELEASING.md`.
 
 ### Fixed

@@ -725,6 +725,35 @@ def test_readme_table_matches_the_keymap():
     assert documented == expected
 
 
+def test_readme_screenshot_is_committed_and_linked():
+    """The README's dashboard image must exist in the repo and be referenced.
+
+    The README is also the PyPI long description (`pyproject.toml` sets
+    `readme`), and PyPI does not resolve relative paths against the repo -- so
+    the image is referenced by absolute raw URL. That makes the link
+    unverifiable offline in both directions: a rename would leave a broken
+    image on the project's front page, and nothing local would notice. This
+    pins the two ends together.
+    """
+    root = pathlib.Path(__file__).resolve().parents[1]
+    relative = "docs/images/dashboard.svg"
+
+    assert (root / relative).is_file(), f"{relative} is missing"
+    assert (root / "docs/images/make_screenshot.py").is_file(), "generator is missing"
+
+    readme = (root / "README.md").read_text()
+    assert relative in readme, "README does not reference the screenshot"
+    # Absolute, not relative: a relative path renders broken on PyPI.
+    assert f"https://raw.githubusercontent.com/yal212/Pynzor/main/{relative}" in readme
+
+    svg = (root / relative).read_text()
+    assert svg.lstrip().startswith("<svg"), "screenshot is not an SVG"
+    # Generated from a real run against a local fixture, so it must not carry
+    # anything from the machine that produced it.
+    for leak in ("/Users/", "/home/", "/var/folders", "C:\\"):
+        assert leak not in svg, f"screenshot leaks a local path: {leak}"
+
+
 def test_cheatsheet_covers_every_key():
     """Every key in the table reaches the `?` card."""
     listed = {cell for _, rows in keymap.sections() for cell, _ in rows}
