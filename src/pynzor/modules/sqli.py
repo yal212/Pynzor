@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime
 from pynzor.utils.http_client import HTTPClient, ClientConfig
 from bs4 import BeautifulSoup
+from pynzor.core.events import ProgressCallback, track
 
 
 SQLI_PAYLOADS = [
@@ -257,6 +258,8 @@ async def probe_sqli(
     target: str,
     max_payloads: int = 20,
     threads: int = 5,
+    on_progress: Optional[ProgressCallback] = None,
+    client_config: Optional[ClientConfig] = None,
 ) -> SQLiResult:
     """Probe a target for SQL injection across GET params and HTML forms.
 
@@ -268,6 +271,7 @@ async def probe_sqli(
         target: URL to probe (query string is used to discover parameters).
         max_payloads: Maximum number of error-based payloads to try.
         threads: Maximum concurrent requests.
+        on_progress: Optional callback fired as each payload test completes.
 
     Returns:
         A :class:`SQLiResult`; ``vulnerable`` is set if any finding is made.
@@ -282,7 +286,7 @@ async def probe_sqli(
         _, params = target.split("?", 1)
         param_names = [p.split("=")[0] for p in params.split("&") if "=" in p]
 
-    config = ClientConfig(rate_limit=0.2)
+    config = client_config or ClientConfig(rate_limit=0.2)
     client = HTTPClient(config)
 
     vulnerabilities: list[SQLiVulnerability] = []
@@ -341,10 +345,11 @@ async def probe_sqli(
         bool_tasks = [limited_boolean_blind(p) for p in param_names]
 
         all_results = await asyncio.gather(
-            *get_tasks,
-            *post_tasks,
-            *time_tasks,
-            *bool_tasks,
+            *track(
+                [*get_tasks, *post_tasks, *time_tasks, *bool_tasks],
+                on_progress,
+                "sqli",
+            ),
             return_exceptions=True,
         )
 

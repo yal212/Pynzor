@@ -1,0 +1,412 @@
+/* Pynzor dashboard — lazygit's layout.
+
+   A column of stacked bordered side panels on the left, a main panel and a
+   command log on the right, and one row of contextual keybindings underneath.
+   All five panels stay open and share the height, which is lazygit's default
+   (expandFocusedSidePanel: false); only the focus border moves.
+
+   Colours come from the terminal, not from here -- see theme.py. Two rules
+   follow from that and explain what would otherwise look like odd choices:
+
+   `ansi_default` appears literally instead of `$surface`/`$panel`, because
+   Textual maps both of those to `transparent` under an ansi theme
+   (design.py:146) and `transparent` is alpha-0 black, not see-through.
+
+   No colour here carries a percentage. Alpha is a no-op on an ANSI colour, so
+   `$primary 35%` would render as solid blue rather than a wash. */
+
+Screen {
+    layers: base;
+    /* The whole point: ANSI -1 tells the terminal to emit no background, so a
+       translucent terminal stays translucent. */
+    background: ansi_default;
+}
+
+#body {
+    height: 1fr;
+}
+
+/* ----------------------------------------------------- Textual's own chrome */
+
+/* Textual's ANSI design pins $scrollbar-background to ansi_black, which paints
+   an opaque black gutter down a panel that is otherwise see-through. lazygit
+   draws no scrollbars at all; one dim column is the least chrome that still
+   says there is more below. */
+* {
+    scrollbar-background: ansi_default;
+    scrollbar-background-hover: ansi_default;
+    scrollbar-background-active: ansi_default;
+    scrollbar-color: $text-muted;
+    scrollbar-color-hover: $text-muted;
+    scrollbar-color-active: $success;
+    scrollbar-corner-color: ansi_default;
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+}
+
+/* DataTable's own `&:ansi` rule fills the header row with ansi_bright_blue
+   (_data_table.py). lazygit's tables have no header bar -- the column names
+   are just dimmer than the rows. */
+DataTable > .datatable--header {
+    background: ansi_default;
+    color: $text-muted;
+    text-style: bold;
+}
+
+/* ------------------------------------------------------------- side column */
+
+/* lazygit's sidePanelWidth is 0.3333. The bounds matter more than the ratio:
+   below 30 the module line (4-wide glyph + label + 10-wide summary) stops
+   fitting "Subdomains", and above 44 the column is just wasting the main
+   panel's room. */
+#side {
+    width: 34%;
+    min-width: 30;
+    max-width: 44;
+}
+
+/* 34% of the width goes to the side column at the normal step; `+` hands two
+   thirds of that back to the main panel, and again to hide the column. */
+#body.main-1 #side {
+    width: 22%;
+    min-width: 24;
+}
+
+#body.main-2 #side {
+    display: none;
+}
+
+/* lazygit's inactiveBorderColor is `default` -- the terminal's own foreground,
+   not a grey. */
+.side-panel {
+    border: round ansi_default;
+    border-title-color: $text-muted;
+    padding: 0 1;
+    /* Every panel stays open and shares what Status leaves over. At 80x24 that
+       is 4 + 5/5/5/4 = 23, so each clears the three rows a border plus one
+       body row needs. Below ~17 rows of terminal there is no longer room. */
+    height: 1fr;
+}
+
+/* activeBorderColor: green, bold. Only the border moves on focus -- the panel
+   does not resize, which is what stops the column jumping as you tab. */
+.side-panel:focus-within {
+    border: round $success;
+    border-title-color: $success;
+    border-title-style: bold;
+}
+
+/* Status has two lines and no cursor, so it never expands past them. */
+#panel-status, #panel-status:focus-within {
+    height: 4;
+}
+
+#panel-status:focus {
+    border: round $success;
+    border-title-color: $success;
+    border-title-style: bold;
+}
+
+.side-panel ListView {
+    background: ansi_default;
+    height: 1fr;
+}
+
+.side-panel ListView > ListItem {
+    background: ansi_default;
+}
+
+/* `-highlight`, one dash: that is the class Textual's ListItem actually sets
+   (_list_item.py watch_highlighted). The two-dash spelling these rules used to
+   carry matched nothing, so the cursor was coming from Textual's
+   $block-cursor-* defaults rather than from here.
+
+   inactiveViewSelectedLineBgColor: bold. An unfocused panel marks its cursor
+   row with weight alone -- five panels each showing a blue bar would give no
+   clue which one has focus. */
+.side-panel ListView > ListItem.-highlight {
+    background: ansi_default;
+    text-style: bold;
+}
+
+/* selectedLineBgColor: blue, and the whole row rather than just the text.
+   bright_white, not $text: $text is ansi_default here, which promises no
+   contrast against blue. */
+.side-panel:focus-within ListView > ListItem.-highlight {
+    background: $primary;
+    color: ansi_bright_white;
+    text-style: none;
+}
+
+/* --------------------------------------------------------- module rows (2) */
+
+.rail-line {
+    height: 1;
+}
+
+.rail-glyph {
+    width: 4;
+}
+
+.rail-label {
+    width: 1fr;
+    padding-left: 1;
+}
+
+/* Fixed width, not auto: an auto width changes with the text, which would
+   force a layout pass on every progress repaint. 10 fits every real summary
+   ("640/1024", "12 found", "stopped") and, unlike 14, still leaves room for
+   "Subdomains" in a 30-column side panel at 80x24. */
+.rail-summary {
+    width: 10;
+    padding-left: 1;
+    color: $text-muted;
+    text-align: right;
+    text-overflow: ellipsis;
+}
+
+ModuleRow.running .rail-glyph {
+    color: $warning;
+}
+
+ModuleRow.done .rail-glyph {
+    color: $success;
+}
+
+ModuleRow.failed .rail-glyph {
+    color: $error;
+}
+
+/* -------------------------------------------------------- option rows (3) */
+
+.opt-line {
+    height: 1;
+}
+
+.opt-label {
+    width: 1fr;
+}
+
+/* Fixed for the same reason as .rail-summary. The main panel shows the value
+   in full, so clipping here only has to stay legible. */
+.opt-value {
+    width: 10;
+    padding-left: 1;
+    color: $accent;
+    text-align: right;
+    text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------- status (1) */
+
+#status-target {
+    height: 1;
+    color: $text;
+    text-overflow: ellipsis;
+}
+
+#status-summary {
+    height: 1;
+    color: $text-muted;
+    text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------- main panel */
+
+#right {
+    width: 1fr;
+}
+
+#main {
+    height: 1fr;
+    border: round ansi_default;
+    border-title-color: $text-muted;
+    padding: 0 1;
+}
+
+#main:focus-within {
+    border: round $success;
+    border-title-color: $success;
+}
+
+.main-view {
+    height: 1fr;
+}
+
+.main-body {
+    width: 1fr;
+}
+
+.pane-progress {
+    height: 1;
+    color: $accent;
+}
+
+.pane-headline {
+    height: 2;
+    color: $text-muted;
+}
+
+DataTable {
+    height: 1fr;
+    background: ansi_default;
+}
+
+/* ------------------------------------------------------------ command log */
+
+/* lazygit's bottom-right panel: three lines of transcript is enough to see
+   what just ran without taking rows the results need. */
+#cmdlog {
+    height: 5;
+    border: round ansi_default;
+    border-title-color: $text-muted;
+    padding: 0 1;
+}
+
+#cmdlog-scroll {
+    height: 1fr;
+}
+
+#cmdlog-body {
+    width: 1fr;
+    color: $success;
+}
+
+/* -------------------------------------------------------------- hint bar */
+
+/* showBottomLine. No background fill: lazygit's last row is just text on the
+   terminal, which is what keeps it from reading as a status *bar*. */
+#hintbar {
+    dock: bottom;
+    height: 1;
+}
+
+#hints {
+    width: 1fr;
+    height: 1;
+    color: $text-muted;
+    text-overflow: ellipsis;
+}
+
+/* Never changes, so `auto` here can never cost a layout pass. */
+#brand {
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    color: $primary;
+}
+
+/* ---------------------------------------------------------------- popups */
+
+/* `transparent` deliberately, and the one place in this file where alpha-0 is
+   right: a modal screen composites over the screen below it, so the dashboard
+   stays visible behind the box the way lazygit's does. `ansi_default` here
+   would paint the terminal default over the whole screen and hide it. */
+HelpScreen, MenuScreen, ConfirmScreen, PromptScreen {
+    align: center middle;
+    background: transparent;
+}
+
+#help-card, #menu-card, #confirm-card, #prompt-card {
+    border: round $success;
+    border-title-color: $success;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    background: ansi_default;
+    padding: 1 2;
+    height: auto;
+    max-height: 100%;
+}
+
+#help-card {
+    width: auto;
+    max-width: 100%;
+}
+
+#help-scroll {
+    width: auto;
+    height: auto;
+    max-height: 100%;
+}
+
+#help-body {
+    width: auto;
+    height: auto;
+}
+
+.help-column {
+    width: auto;
+    height: auto;
+}
+
+/* Gutter between the two columns; Textual CSS has no sibling selector. */
+#help-col-1 {
+    padding-left: 3;
+}
+
+.help-section {
+    width: auto;
+    height: auto;
+    padding-bottom: 1;
+}
+
+/* ------------------------------------------------------------- menu popup */
+
+#menu-card {
+    width: 60;
+    max-width: 100%;
+}
+
+#menu-list {
+    height: auto;
+    max-height: 20;
+    background: ansi_default;
+}
+
+#menu-list > ListItem {
+    background: ansi_default;
+}
+
+#menu-list > ListItem.-highlight {
+    background: $primary;
+    color: ansi_bright_white;
+}
+
+.menu-line {
+    height: 1;
+}
+
+.menu-key {
+    width: 10;
+    color: $accent;
+}
+
+.menu-label {
+    width: 1fr;
+}
+
+/* --------------------------------------------------- confirm and prompt */
+
+#confirm-card, #prompt-card {
+    width: 60;
+    max-width: 100%;
+}
+
+#confirm-body {
+    height: auto;
+    padding-bottom: 1;
+}
+
+#confirm-keys, #prompt-keys {
+    height: 1;
+    color: $text-muted;
+    padding-top: 1;
+}
+
+#prompt-input {
+    border: round ansi_default;
+}
+
+#prompt-input:focus {
+    border: round $accent;
+}

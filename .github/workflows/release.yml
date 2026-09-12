@@ -49,6 +49,7 @@ jobs:
           dist\Pynzor.exe --version
           dist\Pynzor.exe --help
           dist\Pynzor.exe headers --help
+          dist\Pynzor.exe tui --help
         shell: cmd
 
       - name: Upload to GitHub Release
@@ -81,6 +82,17 @@ jobs:
           ./dist/Pynzor --version
           ./dist/Pynzor --help
           ./dist/Pynzor headers --help
+          ./dist/Pynzor tui --help
+          # Bare invocation with no TTY must fall back to help, not try to
+          # start the full-screen dashboard. Three things this has to survive:
+          # the run exits non-zero by design (Click's "Missing command"), Rich
+          # styles its output on CI so escape sequences land between "Usage:"
+          # and the program name, and `grep -q` exits on its first match and
+          # would leave the producer writing into a closed pipe. So capture it,
+          # strip the escapes, then assert on the text.
+          ./dist/Pynzor < /dev/null > bare-run.txt 2>&1 || true
+          sed "s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g" bare-run.txt > bare-run-plain.txt
+          grep -q 'Usage: Pynzor' bare-run-plain.txt || { cat bare-run.txt; exit 1; }
 
       - name: Rename binary
         run: mv dist/Pynzor dist/Pynzor-macos
@@ -115,6 +127,17 @@ jobs:
           ./dist/Pynzor --version
           ./dist/Pynzor --help
           ./dist/Pynzor headers --help
+          ./dist/Pynzor tui --help
+          # Bare invocation with no TTY must fall back to help, not try to
+          # start the full-screen dashboard. Three things this has to survive:
+          # the run exits non-zero by design (Click's "Missing command"), Rich
+          # styles its output on CI so escape sequences land between "Usage:"
+          # and the program name, and `grep -q` exits on its first match and
+          # would leave the producer writing into a closed pipe. So capture it,
+          # strip the escapes, then assert on the text.
+          ./dist/Pynzor < /dev/null > bare-run.txt 2>&1 || true
+          sed "s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g" bare-run.txt > bare-run-plain.txt
+          grep -q 'Usage: Pynzor' bare-run-plain.txt || { cat bare-run.txt; exit 1; }
 
       - name: Rename binary
         run: mv dist/Pynzor dist/Pynzor-linux

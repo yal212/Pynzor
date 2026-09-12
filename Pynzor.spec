@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 a = Analysis(
     ['src/pynzor/cli/main.py'],
     pathex=['src'],
@@ -10,6 +12,10 @@ a = Analysis(
         ('src/pynzor/cli/wordlists', 'pynzor/cli/wordlists'),
         ('src/pynzor/output/templates', 'pynzor/output/templates'),
         ('src/pynzor/cli/config.yaml', 'pynzor/cli'),
+        ('src/pynzor/tui/styles.tcss', 'pynzor/tui'),
+        # Textual ships .tcss and widget data the default analysis misses;
+        # without these the dashboard starts and then fails to style itself.
+        *collect_data_files('textual'),
     ],
     hiddenimports=[
         'dns',
@@ -29,6 +35,11 @@ a = Analysis(
         'anyio',
         'anyio._backends._asyncio',
         'certifi',
+        'pynzor.tui',
+        'pynzor.tui.app',
+        # Textual resolves widgets dynamically, so they are not discoverable
+        # by static analysis.
+        *collect_submodules('textual'),
     ],
     hookspath=[],
     hooksconfig={},

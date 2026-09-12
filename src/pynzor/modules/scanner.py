@@ -4,6 +4,7 @@ import ssl
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
+from pynzor.core.events import ProgressCallback, emit
 
 
 COMMON_PORTS = {
@@ -226,6 +227,7 @@ async def scan(
     concurrent: int = 50,
     service_detection: bool = False,
     banner_timeout: float = 2.0,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> ScanResult:
     """Scan a target across many ports concurrently.
 
@@ -236,6 +238,7 @@ async def scan(
         concurrent: Maximum number of simultaneous port probes.
         service_detection: If True, grab and parse a banner on open ports.
         banner_timeout: Timeout in seconds for banner grabbing.
+        on_progress: Optional callback fired once per port probed.
 
     Returns:
         A :class:`ScanResult` with sorted port results and any errors.
@@ -247,6 +250,8 @@ async def scan(
     result = ScanResult(target=target, start_time=start_time, end_time=start_time)
 
     semaphore = asyncio.Semaphore(concurrent)
+    total = len(ports)
+    counter = {"done": 0}
 
     async def scan_with_semaphore(port: int) -> PortResult:
         """Scan one port under the concurrency semaphore, with optional banner grab."""
@@ -259,6 +264,14 @@ async def scan(
                     port_result.banner = banner[:200]
                     port_result.product = product
                     port_result.version = version
+            counter["done"] += 1
+            emit(
+                on_progress,
+                "ports",
+                counter["done"],
+                total,
+                port_result if port_result.status == "open" else None,
+            )
             return port_result
 
     tasks = [scan_with_semaphore(p) for p in ports]

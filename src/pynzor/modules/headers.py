@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from pynzor.utils.http_client import HTTPClient, ClientConfig
+from pynzor.core.events import ProgressCallback, emit
 
 
 SECURITY_HEADERS = {
@@ -93,7 +94,11 @@ class HeaderResult:
     missing_headers: list[str] = field(default_factory=list)
 
 
-async def analyze_headers(target: str, http_client: HTTPClient | None = None) -> HeaderResult:
+async def analyze_headers(
+    target: str,
+    http_client: HTTPClient | None = None,
+    on_progress: ProgressCallback | None = None,
+) -> HeaderResult:
     """Fetch a target and grade its HTTP security headers.
 
     Checks for a standard set of security headers, deducts points per missing
@@ -103,6 +108,8 @@ async def analyze_headers(target: str, http_client: HTTPClient | None = None) ->
         target: URL to request.
         http_client: Optional client to reuse; one is created and closed if
             not provided.
+        on_progress: Optional callback; this module makes a single request,
+            so it reports 0/1 on start and 1/1 on completion.
 
     Returns:
         A :class:`HeaderResult`. On request error, a default (grade "F",
@@ -112,6 +119,7 @@ async def analyze_headers(target: str, http_client: HTTPClient | None = None) ->
     result = HeaderResult(
         target=target, start_time=start_time, end_time=start_time, missing_headers=[]
     )
+    emit(on_progress, "headers", 0, 1, note="fetching")
 
     if http_client is None:
         config = ClientConfig()
@@ -178,5 +186,7 @@ async def analyze_headers(target: str, http_client: HTTPClient | None = None) ->
     finally:
         if should_close:
             await http_client.close()
+        # In the finally so the early return on a request error reports done too.
+        emit(on_progress, "headers", 1, 1, result)
 
     return result

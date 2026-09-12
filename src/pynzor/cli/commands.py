@@ -33,19 +33,26 @@ from pynzor.cli.options import (
     service_detection as service_detection_opt,
     output_normal as output_normal_opt,
     scan_threads as scan_threads_opt,
+    tui_target as tui_target_opt,
 )
-from pynzor.utils.http_client import HTTPClient, ClientConfig
-from pynzor.utils.validators import normalize_url, extract_domain
-import pynzor.modules as modules
-from pynzor.output.reporter import (
-    Reporter,
-    build_report,
-    severity_from_grade,
-    highest_severity,
-)
+from pynzor.core import runner
+from pynzor.core.config import load_config
+from pynzor.core.parsing import parse_headers
+from pynzor.utils.validators import extract_domain, normalize_url
+from pynzor.output.reporter import Reporter
 from pynzor.output.formatter import Formatter
 
 APP_NAME = "Pynzor"
+
+# Section titles and spinner labels for the full scan, keyed by module id.
+SCAN_SECTIONS = {
+    "ports": ("Port Scanner", "Scanning ports"),
+    "fuzz": ("Directory Fuzzer", "Fuzzing directories"),
+    "headers": ("Security Headers", "Analyzing headers"),
+    "sqli": ("SQL Injection", "Probing for SQL injection"),
+    "xss": ("XSS Detection", "Detecting XSS"),
+    "subdomain": ("Subdomain Enumeration", "Enumerating subdomains"),
+}
 
 
 def get_version() -> str:
@@ -83,64 +90,6 @@ def cli(
     """Fast CTF/lab web reconnaissance for authorized targets."""
 
 
-def _parse_int_list(value: str | None, param: str = "value") -> list[int] | None:
-    """Parse a comma-separated string of integers.
-
-    Args:
-        value: Comma-separated integers, or None/empty.
-        param: Parameter name used in error messages.
-
-    Returns:
-        The parsed list, or None if ``value`` is empty.
-
-    Raises:
-        typer.BadParameter: If any element is not an integer.
-    """
-    if not value:
-        return None
-    try:
-        return [int(p.strip()) for p in value.split(",") if p.strip()]
-    except ValueError:
-        raise typer.BadParameter(
-            f"expected comma-separated integers, got: {value!r}", param_hint=param
-        )
-
-
-def _parse_str_list(value: str | None) -> list[str] | None:
-    """Parse a comma-separated string into a list of trimmed strings.
-
-    Args:
-        value: Comma-separated values, or None/empty.
-
-    Returns:
-        The parsed list, or None if ``value`` is empty.
-    """
-    if not value:
-        return None
-    return [p.strip() for p in value.split(",") if p.strip()]
-
-
-def _parse_headers(values: list[str] | None) -> dict[str, str]:
-    """Parse ``Name: value`` header strings into a dict.
-
-    Args:
-        values: Header strings, each in ``Name: value`` form.
-
-    Returns:
-        A mapping of header name to value.
-
-    Raises:
-        typer.BadParameter: If any entry lacks a colon separator.
-    """
-    headers: dict[str, str] = {}
-    for raw in values or []:
-        if ":" not in raw:
-            raise typer.BadParameter(f"Invalid header (expected 'Name: value'): {raw}")
-        name, _, val = raw.partition(":")
-        headers[name.strip()] = val.strip()
-    return headers
-
-
 @contextmanager
 def spinner(msg: str, use_color: bool = True):
     """Context manager showing a status spinner (or plain text in no-color mode).
@@ -161,40 +110,19 @@ def spinner(msg: str, use_color: bool = True):
         yield
 
 
-def load_config(config_path: Path | None = None):
-    """Load the YAML config, resolving relative wordlist paths.
+def _bad_param(exc: ValueError, param_hint: str):
+    """Re-raise a core ValueError as a Typer parameter error."""
+    return typer.BadParameter(str(exc), param_hint=param_hint)
 
-    Relative ``wordlist`` paths (under ``fuzzer``/``subdomain`` and the
-    ``wordlists`` map) are resolved against the config file's directory so the
-    CLI works when run as a bundled executable.
 
-    Args:
-        config_path: Path to a config file; defaults to the bundled
-            ``config.yaml`` beside this module.
-
-    Returns:
-        The parsed configuration dict.
-    """
-    import yaml
-
-    default_config = Path(__file__).parent / "config.yaml"
-    config_file_path = config_path or default_config
-    config_base = config_file_path.parent
-
-    with open(config_file_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-
-    # Resolve relative wordlist paths against the config file's directory.
-    # Required when running as a PyInstaller exe: CWD != bundle root (_MEIPASS).
-    for section in ("fuzzer", "subdomain"):
-        wl = config.get(section, {}).get("wordlist")
-        if wl and not Path(wl).is_absolute():
-            config[section]["wordlist"] = str(config_base / wl)
-    for key, wl in config.get("wordlists", {}).items():
-        if wl and not Path(wl).is_absolute():
-            config["wordlists"][key] = str(config_base / wl)
-
-    return config
+def _save(report: dict, output_dir: str, module: str) -> Path:
+    """Write a report envelope to a timestamped JSON file and echo the path."""
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True, parents=True)
+    report_file = output_path / f"{module}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    reporter.save(report, report_file)
+    typer.echo(f"\nReport saved to: {report_file}")
+    return report_file
 
 
 @app.command()
@@ -210,136 +138,35 @@ def scan(
     config = load_config(config_file)
     formatter.no_color = no_color
 
-    normalized = normalize_url(target)
-    domain = extract_domain(normalized)
+    printers = {
+        "ports": formatter.print_scanner_results,
+        "fuzz": formatter.print_fuzzer_results,
+        "headers": formatter.print_headers_results,
+        "sqli": formatter.print_sqli_results,
+        "xss": formatter.print_xss_results,
+        "subdomain": formatter.print_subdomain_results,
+    }
 
-    typer.echo(f"Running full scan on {normalized}")
+    # One spinner is active at a time; the runner calls start/done in order.
+    active: list = []
 
-    scan_start = datetime.now().isoformat()
-    modules_out: dict = {}
-    findings: list = []
-    severities: list[str] = []
+    def on_start(module: str) -> None:
+        """Print the section header and open a spinner for this module."""
+        title, label = SCAN_SECTIONS[module]
+        formatter.print_header(title)
+        ctx = spinner(label, not no_color)
+        ctx.__enter__()
+        active.append(ctx)
 
-    async def run_all():
-        """Run every module in sequence and collect their results."""
-        http_config = ClientConfig(
-            timeout=config["http"].get("timeout", 10),
-            max_retries=config["http"].get("max_retries", 3),
-            rate_limit=config["http"].get("rate_limit", 0.1),
-            user_agent=config["http"].get("user_agent"),
-            follow_redirects=config["http"].get("follow_redirects", True),
-            verify_ssl=config["http"].get("verify_ssl", True),
-        )
-        http = HTTPClient(http_config)
+    def on_done(module: str, result) -> None:
+        """Close the spinner and render this module's results."""
+        active.pop().__exit__(None, None, None)
+        printers[module](result)
 
-        formatter.print_header("Port Scanner")
-        with spinner("Scanning ports", not no_color):
-            scanner_result = await modules.scan(domain, ports=config["scanner"]["common_ports"])
-        open_ports = [p for p in scanner_result.ports if p.status == "open"]
-        modules_out["scanner"] = {
-            "ports": [
-                {"port": p.port, "status": p.status, "service": p.service}
-                for p in scanner_result.ports
-            ],
-            "open_count": len(open_ports),
-        }
-        findings.extend(
-            {"module": "ports", "port": p.port, "service": p.service} for p in open_ports
-        )
-        formatter.print_scanner_results(scanner_result)
+    typer.echo(f"Running full scan on {normalize_url(target)}")
 
-        formatter.print_header("Directory Fuzzer")
-        with spinner("Fuzzing directories", not no_color):
-            fuzzer_result = await modules.fuzz(
-                normalized, config["fuzzer"]["wordlist"], config["fuzzer"]["threads"]
-            )
-        modules_out["fuzzer"] = {
-            "found": len(fuzzer_result.found),
-            "paths": [r.url for r in fuzzer_result.found[:20]],
-            "scanned": fuzzer_result.scanned,
-        }
-        findings.extend(
-            {"module": "fuzz", "url": r.url, "status": r.status_code}
-            for r in fuzzer_result.found[:20]
-        )
-        formatter.print_fuzzer_results(fuzzer_result)
-
-        formatter.print_header("Security Headers")
-        with spinner("Analyzing headers", not no_color):
-            headers_result = await modules.analyze(normalized, http)
-        modules_out["headers"] = {
-            "score": headers_result.score,
-            "grade": headers_result.grade,
-            "missing": headers_result.missing_headers,
-        }
-        findings.extend(
-            {"module": "headers", "header": h, "present": False}
-            for h in headers_result.missing_headers
-        )
-        severities.append(severity_from_grade(headers_result.grade))
-        formatter.print_headers_results(headers_result)
-
-        formatter.print_header("SQL Injection")
-        with spinner("Probing for SQL injection", not no_color):
-            sqli_result = await modules.probe(normalized)
-        modules_out["sqli"] = {
-            "vulnerable": sqli_result.vulnerable,
-            "payload": sqli_result.payload,
-        }
-        if sqli_result.vulnerable:
-            findings.append({"module": "sqli", "payload": sqli_result.payload, "vulnerable": True})
-            severities.append("high")
-        formatter.print_sqli_results(sqli_result)
-
-        formatter.print_header("XSS Detection")
-        with spinner("Detecting XSS", not no_color):
-            xss_result = await modules.detect(normalized)
-        modules_out["xss"] = {
-            "vulnerable": xss_result.vulnerable,
-            "payload": xss_result.payload,
-        }
-        if xss_result.vulnerable:
-            findings.append({"module": "xss", "payload": xss_result.payload, "vulnerable": True})
-            severities.append("high")
-        formatter.print_xss_results(xss_result)
-
-        formatter.print_header("Subdomain Enumeration")
-        with spinner("Enumerating subdomains", not no_color):
-            subdomain_result = await modules.enumerate(
-                domain, config["subdomain"]["wordlist"], config["subdomain"]["threads"]
-            )
-        modules_out["subdomain"] = {
-            "found": len(subdomain_result.subdomains),
-            "subdomains": [
-                {
-                    "subdomain": s.subdomain,
-                    "record_type": s.record_type,
-                    "value": s.value,
-                    "verified": s.verified,
-                }
-                for s in subdomain_result.subdomains[:20]
-            ],
-            "scanned": subdomain_result.scanned,
-        }
-        findings.extend(
-            {"module": "subdomain", "subdomain": s.subdomain, "value": s.value}
-            for s in subdomain_result.subdomains[:20]
-        )
-        formatter.print_subdomain_results(subdomain_result)
-
-        # HTTPClient exposes an async close() method for explicit shutdown
-        # (also usable via the async context manager). Ensure we close it here.
-        await http.close()
-
-    asyncio.run(run_all())
-
-    results = build_report(
-        module="scan",
-        target=normalized,
-        findings=findings,
-        severity=highest_severity(severities),
-        metadata={"scan_time": scan_start, "modules": modules_out},
-        timestamp=scan_start,
+    _, report = asyncio.run(
+        runner.run_full_scan(target, config, on_module_start=on_start, on_module_done=on_done)
     )
 
     output_path = Path(output_dir)
@@ -347,11 +174,11 @@ def scan(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if format in ("json", "both"):
         report_file = output_path / f"scan_{timestamp}.json"
-        reporter.save(results, report_file)
+        reporter.save(report, report_file)
         typer.echo(f"\nJSON report saved to: {report_file}")
     if format in ("html", "both"):
         report_file = output_path / f"scan_{timestamp}.html"
-        reporter.save_html(results, report_file)
+        reporter.save_html(report, report_file)
         typer.echo(f"HTML report saved to: {report_file}")
 
 
@@ -379,123 +206,55 @@ def fuzz(
     """Directory/file fuzzing (gobuster-style) or FUZZ-keyword request fuzzing (ffuf-style)"""
     config = load_config(config_file)
     formatter.no_color = no_color
-    fuzzer_cfg = config.get("fuzzer", {})
 
-    headers = _parse_headers(header)
-    request_mode = modules.is_request_mode(target, headers=headers, data=data, method=method)
+    try:
+        headers = parse_headers(header)
+    except ValueError as e:
+        raise _bad_param(e, "--header")
 
-    # FUZZ-mode keeps the keyword-bearing target intact (only ensuring a
-    # scheme so requests resolve); directory-mode normalizes to a clean base URL.
-    if request_mode:
-        normalized = target.strip()
-        if not normalized.startswith(("http://", "https://")):
-            normalized = f"https://{normalized}"
-    else:
-        normalized = normalize_url(target)
-    wordlist_path = str(wordlist) if wordlist else fuzzer_cfg["wordlist"]
+    try:
+        opts = runner.resolve_fuzz_options(
+            target,
+            config,
+            wordlist=str(wordlist) if wordlist else None,
+            threads=threads,
+            no_baseline=no_baseline,
+            extensions=extensions,
+            recursive=recursive,
+            depth=depth,
+            method=method,
+            headers=headers,
+            data=data,
+            match_codes=match_codes,
+            filter_codes=filter_codes,
+            filter_size=filter_size,
+            filter_words=filter_words,
+            filter_lines=filter_lines,
+        )
+    except ValueError as e:
+        raise _bad_param(e, "--match-codes/--filter-codes")
 
-    # Extensions: -x omitted -> config default (directory mode only);
-    # -x "" -> explicit opt-out (bare words only); -x "php,html" -> those.
-    if extensions is None:
-        ext_list = None if request_mode else fuzzer_cfg.get("extensions")
-    else:
-        ext_list = _parse_str_list(extensions)
+    if opts.ignored_flags:
+        applies_to = "request fuzzing (FUZZ keyword / -X / -d)"
+        ignored_in = "directory mode"
+        if opts.request_mode:
+            applies_to, ignored_in = "directory fuzzing", "request mode"
+        typer.echo(
+            f"Warning: {', '.join(opts.ignored_flags)} only apply to {applies_to}; "
+            f"ignored in {ignored_in}."
+        )
 
-    effective_depth = depth if depth is not None else fuzzer_cfg.get("recursion_depth", 1)
+    mode_label = "requests" if opts.request_mode else "directories"
+    typer.echo(f"Fuzzing {mode_label} on {opts.target}")
 
-    match_list = _parse_int_list(match_codes, "--match-codes")
-    if match_list is None and request_mode:
-        match_list = fuzzer_cfg.get("match_codes")
-    filter_list = _parse_int_list(filter_codes, "--filter-codes")
-
-    if not request_mode:
-        dropped = [
-            name
-            for name, given in (
-                ("--match-codes", bool(match_codes)),
-                ("--filter-codes", bool(filter_codes)),
-                ("--filter-size", filter_size is not None),
-                ("--filter-words", filter_words is not None),
-                ("--filter-lines", filter_lines is not None),
-            )
-            if given
-        ]
-        if dropped:
-            typer.echo(
-                f"Warning: {', '.join(dropped)} only apply to request fuzzing "
-                "(FUZZ keyword / -X / -d); ignored in directory mode."
-            )
-    else:
-        dropped = [
-            name
-            for name, given in (
-                ("--extensions", extensions is not None),
-                ("--recursive", recursive),
-                ("--depth", depth is not None),
-            )
-            if given
-        ]
-        if dropped:
-            typer.echo(
-                f"Warning: {', '.join(dropped)} only apply to directory fuzzing; "
-                "ignored in request mode."
-            )
-
-    if request_mode:
-        typer.echo(f"Fuzzing requests on {normalized}")
-    else:
-        typer.echo(f"Fuzzing directories on {normalized}")
-
-    async def run_fuzz():
-        """Run the fuzzer with the resolved options and print results."""
+    async def run():
+        """Run the fuzzer and print its results while the spinner is up."""
         with spinner("Fuzzing", not no_color):
-            result = await modules.fuzz(
-                normalized,
-                wordlist_path,
-                threads,
-                use_baseline=not no_baseline,
-                extensions=ext_list,
-                recursive=recursive,
-                depth=effective_depth,
-                method=method,
-                headers=headers or None,
-                data=data,
-                match_codes=match_list,
-                filter_codes=filter_list,
-                filter_size=filter_size,
-                filter_words=filter_words,
-                filter_lines=filter_lines,
-            )
+            result, report = await runner.run_fuzz(opts)
         formatter.print_fuzzer_results(result)
-        return result
+        return report
 
-    result = asyncio.run(run_fuzz())
-
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"fuzz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(
-        build_report(
-            module="fuzz",
-            target=normalized,
-            findings=[
-                {
-                    "url": r.url,
-                    "status": r.status_code,
-                    "length": r.content_length,
-                    "word": r.word,
-                }
-                for r in result.found
-            ],
-            metadata={
-                "mode": result.mode,
-                "found_count": len(result.found),
-                "scanned": result.scanned,
-            },
-        ),
-        report_file,
-    )
-    typer.echo(f"\nReport saved to: {report_file}")
+    _save(asyncio.run(run()), output_dir, "fuzz")
 
 
 @app.command()
@@ -515,65 +274,35 @@ def ports(
     config = load_config(config_file)
     formatter.no_color = no_color
 
-    host = extract_domain(normalize_url(target))
-    scanner_cfg = config.get("scanner", {})
     try:
-        port_list = parse_ports(ports) if ports else scanner_cfg.get("common_ports")
+        port_list = parse_ports(ports) if ports else None
     except ValueError as e:
-        raise typer.BadParameter(str(e), param_hint="--ports")
+        raise _bad_param(e, "--ports")
 
-    # --threads overrides; otherwise fall back to the config's concurrency.
-    concurrent = threads if threads is not None else scanner_cfg.get("concurrent", 50)
-
+    host = extract_domain(normalize_url(target))
     typer.echo(f"Scanning ports on {host}")
 
-    async def run_ports():
-        """Run the port scan with the resolved options and print results."""
+    async def run():
+        """Run the port scan and print its results while the spinner is up."""
         with spinner("Scanning ports", not no_color):
-            result = await modules.scan(
-                host,
+            result, report = await runner.run_ports(
+                target,
+                config,
                 ports=port_list,
-                timeout=scanner_cfg.get("timeout", 3),
-                concurrent=concurrent,
                 service_detection=service_detection,
-                banner_timeout=scanner_cfg.get("banner_timeout", 2),
+                threads=threads,
             )
         formatter.print_scanner_results(result)
-        return result
+        return result, report
 
-    result = asyncio.run(run_ports())
+    result, report = asyncio.run(run())
 
     if output_normal:
         output_normal.parent.mkdir(exist_ok=True, parents=True)
         output_normal.write_text(format_nmap_text(result))
         typer.echo(f"Plain-text report saved to: {output_normal}")
 
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"ports_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(
-        build_report(
-            module="ports",
-            target=host,
-            findings=[
-                {
-                    "port": p.port,
-                    "status": p.status,
-                    "service": p.service,
-                    "product": p.product,
-                    "version": p.version,
-                    "banner": p.banner,
-                }
-                for p in result.ports
-                if p.status != "closed"
-            ],
-            metadata={
-                "open_count": len([p for p in result.ports if p.status == "open"]),
-            },
-        ),
-        report_file,
-    )
-    typer.echo(f"\nReport saved to: {report_file}")
+    _save(report, output_dir, "ports")
 
 
 @app.command(name="headers")
@@ -584,45 +313,19 @@ def headers_cmd(
     config_file: Path = config_file,
 ):
     """Security header analysis"""
-    load_config(config_file)
+    config = load_config(config_file)
     formatter.no_color = no_color
 
-    normalized = normalize_url(target)
+    typer.echo(f"Analyzing headers on {normalize_url(target)}")
 
-    typer.echo(f"Analyzing headers on {normalized}")
-
-    async def run_headers():
-        """Run header analysis and print results."""
+    async def run():
+        """Run header analysis and print its results while the spinner is up."""
         with spinner("Analyzing headers", not no_color):
-            result = await modules.analyze(normalized, None)
+            result, report = await runner.run_headers(target, config)
         formatter.print_headers_results(result)
-        return result
+        return report
 
-    result = asyncio.run(run_headers())
-
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"headers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(
-        build_report(
-            module="headers",
-            target=normalized,
-            findings=[
-                {
-                    "header": a.header,
-                    "present": a.present,
-                    "risk": a.risk,
-                    "recommendation": a.recommendation,
-                }
-                for a in result.analysis
-                if not a.present
-            ],
-            severity=severity_from_grade(result.grade),
-            metadata={"score": result.score, "grade": result.grade},
-        ),
-        report_file,
-    )
-    typer.echo(f"\nReport saved to: {report_file}")
+    _save(asyncio.run(run()), output_dir, "headers")
 
 
 @app.command()
@@ -633,48 +336,19 @@ def sqli(
     config_file: Path = config_file,
 ):
     """SQL injection probe"""
-    load_config(config_file)
+    config = load_config(config_file)
     formatter.no_color = no_color
 
-    normalized = normalize_url(target)
+    typer.echo(f"Probing for SQL injection on {normalize_url(target)}")
 
-    typer.echo(f"Probing for SQL injection on {normalized}")
-
-    async def run_sqli():
-        """Run the SQL injection probe and print results."""
+    async def run():
+        """Run the SQL injection probe and print its results."""
         with spinner("Probing for SQL injection", not no_color):
-            result = await modules.probe(normalized)
+            result, report = await runner.run_sqli(target, config)
         formatter.print_sqli_results(result)
-        return result
+        return report
 
-    result = asyncio.run(run_sqli())
-
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"sqli_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(
-        build_report(
-            module="sqli",
-            target=normalized,
-            findings=[
-                {
-                    "url": v.url,
-                    "payload": v.payload,
-                    "type": v.type,
-                    "evidence": v.evidence,
-                }
-                for v in result.vulnerabilities
-            ],
-            severity="high" if result.vulnerable else "info",
-            metadata={
-                "vulnerable": result.vulnerable,
-                "payload": result.payload,
-                "tested": result.tested,
-            },
-        ),
-        report_file,
-    )
-    typer.echo(f"\nReport saved to: {report_file}")
+    _save(asyncio.run(run()), output_dir, "sqli")
 
 
 @app.command()
@@ -685,48 +359,19 @@ def xss(
     config_file: Path = config_file,
 ):
     """Reflected XSS detection"""
-    load_config(config_file)
+    config = load_config(config_file)
     formatter.no_color = no_color
 
-    normalized = normalize_url(target)
+    typer.echo(f"Detecting XSS on {normalize_url(target)}")
 
-    typer.echo(f"Detecting XSS on {normalized}")
-
-    async def run_xss():
-        """Run XSS detection and print results."""
+    async def run():
+        """Run XSS detection and print its results."""
         with spinner("Detecting XSS", not no_color):
-            result = await modules.detect(normalized)
+            result, report = await runner.run_xss(target, config)
         formatter.print_xss_results(result)
-        return result
+        return report
 
-    result = asyncio.run(run_xss())
-
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"xss_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(
-        build_report(
-            module="xss",
-            target=normalized,
-            findings=[
-                {
-                    "url": v.url,
-                    "payload": v.payload,
-                    "type": v.type,
-                    "evidence": v.evidence,
-                }
-                for v in result.vulnerabilities
-            ],
-            severity="high" if result.vulnerable else "info",
-            metadata={
-                "vulnerable": result.vulnerable,
-                "payload": result.payload,
-                "tested": result.tested,
-            },
-        ),
-        report_file,
-    )
-    typer.echo(f"\nReport saved to: {report_file}")
+    _save(asyncio.run(run()), output_dir, "xss")
 
 
 @app.command()
@@ -742,45 +387,18 @@ def subdomain(
     config = load_config(config_file)
     formatter.no_color = no_color
 
-    domain = extract_domain(target)
+    typer.echo(f"Enumerating subdomains of {extract_domain(target)}")
 
-    typer.echo(f"Enumerating subdomains of {domain}")
-
-    async def run_subdomain():
-        """Run subdomain enumeration and print results."""
+    async def run():
+        """Run subdomain enumeration and print its results."""
         with spinner("Enumerating subdomains", not no_color):
-            result = await modules.enumerate(
-                domain,
-                config["subdomain"]["wordlist"],
-                threads,
-                include_wildcard=include_wildcard,
+            result, report = await runner.run_subdomain(
+                target, config, threads=threads, include_wildcard=include_wildcard
             )
         formatter.print_subdomain_results(result)
-        return result
+        return report
 
-    result = asyncio.run(run_subdomain())
-
-    output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-    report_file = output_path / f"subdomain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    reporter.save(
-        build_report(
-            module="subdomain",
-            target=domain,
-            findings=[
-                {
-                    "subdomain": s.subdomain,
-                    "record_type": s.record_type,
-                    "value": s.value,
-                    "verified": s.verified,
-                }
-                for s in result.subdomains
-            ],
-            metadata={"found_count": len(result.subdomains), "scanned": result.scanned},
-        ),
-        report_file,
-    )
-    typer.echo(f"\nReport saved to: {report_file}")
+    _save(asyncio.run(run()), output_dir, "subdomain")
 
 
 @app.command()
@@ -794,3 +412,14 @@ def report(
 
     console = Console()
     console.print_json(json.dumps(data, indent=2))
+
+
+@app.command()
+def tui(
+    target: str | None = tui_target_opt,
+    config_file: Path = config_file,
+):
+    """Launch the interactive dashboard (also the default with no arguments)"""
+    from pynzor.tui.app import run_tui
+
+    raise typer.Exit(run_tui(load_config(config_file), target=target))

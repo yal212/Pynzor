@@ -5,7 +5,8 @@ from . import sqli as _sqli
 from . import xss as _xss
 from . import subdomain as _subdomain
 from .fuzzer import is_request_mode
-from pynzor.utils.http_client import HTTPClient
+from pynzor.core.events import ProgressCallback
+from pynzor.utils.http_client import ClientConfig, HTTPClient
 
 
 async def scan(
@@ -15,6 +16,7 @@ async def scan(
     concurrent: int = 50,
     service_detection: bool = False,
     banner_timeout: float = 2.0,
+    on_progress: ProgressCallback | None = None,
 ):
     """Public facade for the port scanner.
 
@@ -30,6 +32,7 @@ async def scan(
         concurrent,
         service_detection=service_detection,
         banner_timeout=banner_timeout,
+        on_progress=on_progress,
     )
 
 
@@ -49,6 +52,8 @@ async def fuzz(
     filter_size: int | None = None,
     filter_words: int | None = None,
     filter_lines: int | None = None,
+    on_progress: ProgressCallback | None = None,
+    client_config: ClientConfig | None = None,
 ):
     """Public facade for the fuzzer.
 
@@ -74,6 +79,8 @@ async def fuzz(
             filter_size=filter_size,
             filter_words=filter_words,
             filter_lines=filter_lines,
+            on_progress=on_progress,
+            client_config=client_config,
         )
 
     return await _fuzzer.fuzz_directory(
@@ -84,10 +91,16 @@ async def fuzz(
         extensions=extensions,
         recursive=recursive,
         depth=depth,
+        on_progress=on_progress,
+        client_config=client_config,
     )
 
 
-async def analyze(target: str, http_client: HTTPClient | None = None):
+async def analyze(
+    target: str,
+    http_client: HTTPClient | None = None,
+    on_progress: ProgressCallback | None = None,
+):
     """Public facade for security-header analysis.
 
     Delegates to :func:`modules.headers.analyze_headers`.
@@ -95,10 +108,14 @@ async def analyze(target: str, http_client: HTTPClient | None = None):
     Returns:
         A ``HeaderResult``.
     """
-    return await _headers.analyze_headers(target, http_client)
+    return await _headers.analyze_headers(target, http_client, on_progress=on_progress)
 
 
-async def probe(target: str):
+async def probe(
+    target: str,
+    on_progress: ProgressCallback | None = None,
+    client_config: ClientConfig | None = None,
+):
     """Public facade for SQL injection probing.
 
     Delegates to :func:`modules.sqli.probe_sqli`, which manages its own HTTP
@@ -107,10 +124,14 @@ async def probe(target: str):
     Returns:
         A ``SQLiResult``.
     """
-    return await _sqli.probe_sqli(target)
+    return await _sqli.probe_sqli(target, on_progress=on_progress, client_config=client_config)
 
 
-async def detect(target: str):
+async def detect(
+    target: str,
+    on_progress: ProgressCallback | None = None,
+    client_config: ClientConfig | None = None,
+):
     """Public facade for XSS detection.
 
     Delegates to :func:`modules.xss.detect_xss`, which manages its own HTTP
@@ -119,7 +140,7 @@ async def detect(target: str):
     Returns:
         An ``XSSResult``.
     """
-    return await _xss.detect_xss(target)
+    return await _xss.detect_xss(target, on_progress=on_progress, client_config=client_config)
 
 
 async def enumerate(
@@ -127,6 +148,8 @@ async def enumerate(
     wordlist_path: str,
     threads: int = 20,
     include_wildcard: bool = False,
+    on_progress: ProgressCallback | None = None,
+    client_config: ClientConfig | None = None,
 ):
     """Public facade for subdomain enumeration.
 
@@ -138,5 +161,10 @@ async def enumerate(
     """
     wordlist = _fuzzer.load_wordlist(wordlist_path)
     return await _subdomain.enumerate_subdomains(
-        target, wordlist, threads, include_wildcard=include_wildcard
+        target,
+        wordlist,
+        threads,
+        include_wildcard=include_wildcard,
+        on_progress=on_progress,
+        client_config=client_config,
     )

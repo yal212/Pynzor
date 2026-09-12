@@ -5,6 +5,7 @@ from datetime import datetime
 from pynzor.utils.http_client import HTTPClient, ClientConfig
 from bs4 import BeautifulSoup
 import re
+from pynzor.core.events import ProgressCallback, track
 
 
 XSS_PAYLOADS = [
@@ -224,6 +225,8 @@ async def detect_xss(
     target: str,
     max_payloads: int = 20,
     threads: int = 5,
+    on_progress: Optional[ProgressCallback] = None,
+    client_config: Optional[ClientConfig] = None,
 ) -> XSSResult:
     """Probe a target for reflected/stored/DOM XSS via GET params and forms.
 
@@ -235,6 +238,7 @@ async def detect_xss(
         target: URL to probe (query string is used to discover parameters).
         max_payloads: Maximum number of payloads to try.
         threads: Maximum concurrent requests.
+        on_progress: Optional callback fired as each payload test completes.
 
     Returns:
         An :class:`XSSResult`; ``vulnerable`` is set if any finding is made.
@@ -249,7 +253,7 @@ async def detect_xss(
         _, params = target.split("?", 1)
         param_names = [p.split("=")[0] for p in params.split("&") if "=" in p]
 
-    config = ClientConfig(rate_limit=0.2)
+    config = client_config or ClientConfig(rate_limit=0.2)
     client = HTTPClient(config)
 
     vulnerabilities: list[XSSVulnerability] = []
@@ -292,7 +296,9 @@ async def detect_xss(
         get_tasks = [limited_test_get(p) for p in payloads] if param_names else []
         post_tasks = [limited_test_post(p) for p in payloads] if forms else []
 
-        all_results = await asyncio.gather(*get_tasks, *post_tasks, return_exceptions=True)
+        all_results = await asyncio.gather(
+            *track([*get_tasks, *post_tasks], on_progress, "xss"), return_exceptions=True
+        )
 
         for r in all_results:
             if isinstance(r, XSSVulnerability):

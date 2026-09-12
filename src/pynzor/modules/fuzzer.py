@@ -1,12 +1,13 @@
 import asyncio
 import hashlib
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 from datetime import datetime
 from pathlib import Path
 from pynzor.utils.http_client import HTTPClient, ClientConfig, Response
 from pynzor.utils.validators import extract_domain
+from pynzor.core.events import ProgressCallback, emit
 
 
 FUZZ_KEYWORD = "FUZZ"
@@ -230,6 +231,8 @@ async def fuzz_directory(
     recursive: bool = False,
     depth: int = 1,
     max_candidates: int = 20000,
+    on_progress: Optional[ProgressCallback] = None,
+    client_config: Optional[ClientConfig] = None,
 ) -> FuzzScanResult:
     """Run gobuster-style directory fuzzing against a base URL.
 
@@ -247,6 +250,7 @@ async def fuzz_directory(
         recursive: Whether to recurse into discovered directories.
         depth: Maximum recursion depth when ``recursive`` is set.
         max_candidates: Cap on total candidates/requests to bound fan-out.
+        on_progress: Optional callback fired once per request completed.
 
     Returns:
         A :class:`FuzzScanResult` with discovered paths and run statistics.
@@ -263,15 +267,27 @@ async def fuzz_directory(
     start_time = datetime.now()
     result = FuzzScanResult(target=target, start_time=start_time, end_time=start_time)
 
-    config = ClientConfig(rate_limit=0.1)
+    config = client_config or ClientConfig(rate_limit=0.1)
     client = HTTPClient(config)
     semaphore = asyncio.Semaphore(threads)
 
     totals = {"scanned": 0, "errors": 0, "baseline_filtered": 0}
     found: list[FuzzResult] = []
 
+    # Recursion can add bases, so the bar is sized by the global request
+    # budget rather than by this base's candidate count alone.
+    progress_total = min(len(candidates), max_candidates)
+
     async def fuzz_base(base: str) -> tuple[list[FuzzResult], Optional[BaselineSignature]]:
         """Fuzz every candidate under one base URL, returning hits and its baseline."""
+        if use_baseline:
+            emit(
+                on_progress,
+                "fuzz",
+                totals["scanned"],
+                progress_total,
+                note=f"probing baseline for {base}",
+            )
         baseline = await _probe_baseline(client, base, semaphore) if use_baseline else None
 
         async def fuzz_path(path: str) -> Optional[FuzzResult]:
@@ -280,20 +296,34 @@ async def fuzz_directory(
             async with semaphore:
                 response = await client.get(url)
             totals["scanned"] += 1
+
+            def report(hit: Optional[FuzzResult]) -> Optional[FuzzResult]:
+                """Emit progress for this completed request and pass the hit through."""
+                emit(
+                    on_progress,
+                    "fuzz",
+                    totals["scanned"],
+                    max(progress_total, totals["scanned"]),
+                    hit,
+                )
+                return hit
+
             if response.error:
                 totals["errors"] += 1
-                return None
+                return report(None)
             if response.status_code not in status_codes:
-                return None
+                return report(None)
             if baseline is not None and baseline.matches(response):
                 totals["baseline_filtered"] += 1
-                return None
-            return FuzzResult(
-                url=response.url,
-                status_code=response.status_code,
-                discovered=True,
-                content_length=len(response.body or ""),
-                redirect=response.headers.get("Location"),
+                return report(None)
+            return report(
+                FuzzResult(
+                    url=response.url,
+                    status_code=response.status_code,
+                    discovered=True,
+                    content_length=len(response.body or ""),
+                    redirect=response.headers.get("Location"),
+                )
             )
 
         # Honor the global budget across recursive bases: the BFS loop only
@@ -367,6 +397,8 @@ async def fuzz_request(
     filter_words: Optional[int] = None,
     filter_lines: Optional[int] = None,
     max_candidates: int = 20000,
+    on_progress: Optional[ProgressCallback] = None,
+    client_config: Optional[ClientConfig] = None,
 ) -> FuzzScanResult:
     """ffuf-style fuzzing: substitute the ``FUZZ`` keyword into the URL, header
     values, and/or raw body, then match/filter responses."""
@@ -387,7 +419,9 @@ async def fuzz_request(
 
     # Don't follow redirects: ffuf treats 3xx as terminal so -mc 301,302,307
     # (and the default matcher) can actually match instead of resolving to 200.
-    config = ClientConfig(rate_limit=0.1, follow_redirects=False)
+    # Don't follow redirects regardless of what the caller configured:
+    # ffuf treats 3xx as terminal so -mc 301,302,307 can actually match.
+    config = replace(client_config or ClientConfig(rate_limit=0.1), follow_redirects=False)
     client = HTTPClient(config)
     semaphore = asyncio.Semaphore(threads)
 
@@ -419,9 +453,14 @@ async def fuzz_request(
             response = await client.request(method, url, headers=req_headers or None, content=body)
         totals["scanned"] += 1
 
+        def report(hit: Optional[FuzzResult]) -> Optional[FuzzResult]:
+            """Emit progress for this completed request and pass the hit through."""
+            emit(on_progress, "fuzz", totals["scanned"], len(wordlist), hit)
+            return hit
+
         if response.error:
             totals["errors"] += 1
-            return None
+            return report(None)
 
         text = response.body or ""
         size = len(text)
@@ -429,17 +468,19 @@ async def fuzz_request(
         lines = len(text.splitlines())
 
         if not _passes_filters(response.status_code, size, words, lines):
-            return None
+            return report(None)
 
-        return FuzzResult(
-            url=response.url,
-            status_code=response.status_code,
-            discovered=True,
-            content_length=size,
-            redirect=response.headers.get("Location"),
-            word=word,
-            words=words,
-            lines=lines,
+        return report(
+            FuzzResult(
+                url=response.url,
+                status_code=response.status_code,
+                discovered=True,
+                content_length=size,
+                redirect=response.headers.get("Location"),
+                word=word,
+                words=words,
+                lines=lines,
+            )
         )
 
     async with client:

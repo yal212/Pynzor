@@ -16,6 +16,9 @@ scanner:
 
 fuzzer:
   threads: 20
+  # Minimum seconds between requests. Lower it for a local lab; raise it to be
+  # gentler on a shared target. Was hardcoded in the module before v1.2.
+  rate_limit: 0.1
   status_codes: [200, 201, 204, 301, 302, 307, 401, 403]
   match_codes: [200, 204, 301, 302, 307, 401, 403, 405, 500]
   extensions: ["", ".php", ".html", ".htm", ".asp", ".aspx", ".jsp", ".txt"]
@@ -34,6 +37,7 @@ xss:
 
 subdomain:
   threads: 20
+  rate_limit: 0.1
   check_http: true
   wordlist: "wordlists/subdomains.txt"
 
