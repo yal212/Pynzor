@@ -79,7 +79,14 @@ jobs:
           "$BIN/Pynzor" headers --help
           "$BIN/Pynzor" tui --help
           # Bare invocation with no TTY must fall back to help, not try to
-          # start the full-screen dashboard.
-          "$BIN/Pynzor" < /dev/null 2>&1 | grep -q 'Usage: Pynzor'
+          # start the full-screen dashboard. Three things this has to survive:
+          # the run exits non-zero by design (Click's "Missing command"), Rich
+          # styles its output on CI so escape sequences land between "Usage:"
+          # and the program name, and `grep -q` exits on its first match and
+          # would leave the producer writing into a closed pipe. So capture it,
+          # strip the escapes, then assert on the text.
+          "$BIN/Pynzor" < /dev/null > bare-run.txt 2>&1 || true
+          sed "s/$(printf '\033')\[[0-9;]*[a-zA-Z]//g" bare-run.txt > bare-run-plain.txt
+          grep -q 'Usage: Pynzor' bare-run-plain.txt || { cat bare-run.txt; exit 1; }
           "$BIN/pynzor" --version
           "$BIN/python" -c "import importlib.resources as r; assert (r.files('pynzor')/'py.typed').is_file(); assert (r.files('pynzor.cli')/'config.yaml').is_file(); assert (r.files('pynzor.cli')/'wordlists'/'common-dirs.txt').is_file(); assert (r.files('pynzor.output')/'templates'/'report.html.j2').is_file(); assert (r.files('pynzor.tui')/'styles.tcss').is_file(); print('bundled package data OK')"
