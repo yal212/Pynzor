@@ -710,19 +710,32 @@ def test_every_panel_is_described_by_the_keymap():
         assert panel_id in keymap.PANEL_TITLES
 
 
-def test_readme_table_matches_the_keymap():
-    """The README's key table is the third copy, and the one nothing watched.
+def test_docs_table_matches_the_keymap():
+    """The docs' key table is the third copy, and the one nothing watched.
 
     It is generated from `keymap` now, so this asserts it was regenerated --
-    a key added without touching the README fails here rather than silently
-    documenting the wrong thing.
+    a key added without touching `docs/dashboard.md` fails here rather than
+    silently documenting the wrong thing.
+
+    The README carries a short subset of the same table for the front page.
+    That one is only asserted to be a subset: it is allowed to list fewer keys
+    than the keymap, but never a key the keymap does not bind, and never a
+    stale label for one it does.
     """
     import re
 
-    readme = (pathlib.Path(__file__).resolve().parents[1] / "README.md").read_text()
-    documented = set(re.findall(r"^\| `(.+?)` \| (.+?) \| (.+?) \|$", readme, re.MULTILINE))
+    root = pathlib.Path(__file__).resolve().parents[1]
+    pattern = r"^\| `(.+?)` \| (.+?) \| (.+?) \|$"
     expected = {(shown, group, label) for group, rows in keymap.sections() for shown, label in rows}
+
+    reference = (root / "docs" / "dashboard.md").read_text()
+    documented = set(re.findall(pattern, reference, re.MULTILINE))
     assert documented == expected
+
+    readme = (root / "README.md").read_text()
+    highlighted = set(re.findall(pattern, readme, re.MULTILINE))
+    assert highlighted, "the README lists no keys at all"
+    assert highlighted <= expected
 
 
 def test_readme_screenshot_is_committed_and_linked():

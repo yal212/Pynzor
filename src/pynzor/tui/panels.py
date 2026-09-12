@@ -60,7 +60,7 @@ class SidePanel(Vertical):
 
         Composed here rather than in ``PANEL_TITLES`` because that table also
         titles the cheatsheet's sections, and those are compared against the
-        README -- a number belongs in a border, not in a heading.
+        docs -- a number belongs in a border, not in a heading.
 
         A method rather than an f-string at each call site: a panel that
         re-titles itself as its context changes must not have to remember to

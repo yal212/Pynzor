@@ -1,7 +1,7 @@
 """Every key the dashboard binds, in one table.
 
 Four things used to be hand-maintained copies of each other: the app's
-``BINDINGS``, the ``?`` cheatsheet, the bottom hint bar, and the README. Here
+``BINDINGS``, the ``?`` cheatsheet, the bottom hint bar, and the docs. Here
 they are one table and three generators, so a key can only be added in one
 place.
 
@@ -25,7 +25,7 @@ PANEL_ORDER: tuple[PanelId, ...] = ("status", "modules", "options", "findings", 
 
 #: Panel id -> its title. The border draws this behind the panel's jump number
 #: (lazygit's showPanelJumps); bare here because the cheatsheet's section
-#: headings come from the same table and are compared against the README.
+#: headings come from the same table and are compared against the docs.
 PANEL_TITLES: dict[PanelId, str] = {
     "status": "Status",
     "modules": "Modules",

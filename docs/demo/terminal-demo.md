@@ -78,6 +78,27 @@ Pynzor report docs/samples/sample_report.json
 
 Reports are written to `./reports` unless `--output` points elsewhere.
 
+## Recording the Cast
+
+A recorded terminal session is tracked as an asciinema cast at
+[pynzor-demo.cast](pynzor-demo.cast). It walks through `--version`, `headers`,
+`ports`, `fuzz`, and `report` against a local `127.0.0.1` fixture — no public
+target is scanned. Replay it locally with:
+
+```bash
+asciinema play docs/demo/pynzor-demo.cast
+```
+
+Regenerate it at any time. The script captures real CLI output against the
+local fixture, so no external network is used:
+
+```bash
+uv run python docs/demo/record_demo.py
+```
+
+To record manually instead, start a local fixture and run `asciinema rec` while
+you drive the commands above yourself.
+
 ## Safety Note
 
 Only run these commands against systems you own, CTF/lab infrastructure, or targets where you have explicit authorization.
