@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-12
+
 ### Added
 - **A lazygit-shaped dashboard.** The two-panel layout is now a column of five
   stacked side panels — Status, Modules, Options, Findings, Reports — jumped to
@@ -129,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `text-overflow` and the app registers a `textual.theme.Theme`, neither of
   which exists in 0.79.
 
-## [1.1.0] - 2026-06-18
+## 1.1.0 - 2026-06-18 (never released; first shipped in 1.2.0)
 
 ### Added
 - Directory/file fuzzing and ffuf-style `FUZZ`-keyword request fuzzing in the
@@ -159,7 +161,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release: async `httpx`-powered web recon CLI with colorized terminal
   output, `pipx`/`pip` install, and a bundled default configuration.
 
-[Unreleased]: https://github.com/yal212/Pynzor/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/yal212/Pynzor/releases/tag/v1.1.0
+[Unreleased]: https://github.com/yal212/Pynzor/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/yal212/Pynzor/releases/tag/v1.2.0
 [1.0.8]: https://github.com/yal212/Pynzor/releases/tag/v1.0.8
 [1.0.0]: https://github.com/yal212/Pynzor/releases/tag/v1.0.0

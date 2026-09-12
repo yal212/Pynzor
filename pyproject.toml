@@ -1,6 +1,6 @@
 [project]
 name = "Pynzor"
-version = "1.1.0"
+version = "1.2.0"
 description = "CTF and lab web recon CLI for ports, fuzzing, headers, SQLi, XSS, and subdomains"
 readme = "README.md"
 requires-python = ">=3.10"
