@@ -1,11 +1,16 @@
 """Tests for the Rich console renderer in :mod:`pynzor.output.formatter`.
 
-Output is captured via the module-level console's ``capture()`` context manager;
-assertions target stable summary/verdict lines and table titles rather than
+Output is captured via the module-level console's ``capture()`` context manager
+and normalised through ``plain_text`` before matching, so these assertions hold
+whether or not the terminal running them has colour -- see that helper for why.
+They target stable summary/verdict lines and table titles rather than
 width-sensitive table cell contents.
 """
 
 from datetime import datetime
+
+import pytest
+from conftest import plain_text
 
 from pynzor.output import formatter as fmt_module
 from pynzor.output.formatter import (
@@ -27,12 +32,28 @@ from pynzor.modules.xss import XSSResult
 from pynzor.modules.subdomain import SubdomainResult, SubdomainScanResult
 
 
+@pytest.fixture(autouse=True)
+def fixed_console_width():
+    """Render at a fixed width, whatever terminal the suite is running in.
+
+    Rich fits a table to the console by truncating cells with an ellipsis, so
+    at 40 columns "Version" renders as "Vers…" and there is nothing left for an
+    assertion to match. Unlike colour and wrapping, that is real data loss that
+    normalising the text afterwards cannot undo -- so pin the width instead.
+    """
+    console = fmt_module.console
+    original = console.width
+    console.width = 100
+    yield
+    console.width = original
+
+
 def render(method, *args) -> str:
-    """Call a Formatter method under output capture and return the text."""
+    """Call a Formatter method under output capture and return its plain text."""
     formatter = Formatter()
     with fmt_module.console.capture() as capture:
         getattr(formatter, method)(*args)
-    return capture.get()
+    return plain_text(capture.get())
 
 
 def _now() -> datetime:
@@ -268,7 +289,7 @@ def test_format_score_and_title():
     with fmt_module.console.capture() as capture:
         fmt_module.console.print(panel)
         fmt_module.console.print(title)
-    out = capture.get()
+    out = plain_text(capture.get())
     assert "92/100" in out
     assert "Report" in out
 
@@ -276,4 +297,4 @@ def test_format_score_and_title():
 def test_print_json_renders_value():
     with fmt_module.console.capture() as capture:
         print_json('{"ok": true}')
-    assert "ok" in capture.get()
+    assert "ok" in plain_text(capture.get())

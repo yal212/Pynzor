@@ -1,8 +1,35 @@
 import pytest
 import asyncio
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit
+
+#: Rich's box-drawing range -- panel and table borders.
+_BOX = re.compile(r"[\u2500-\u257f]")
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def plain_text(output: str) -> str:
+    """Normalise Rich-rendered output before matching text in it.
+
+    Three things get in the way, none of them stable across the terminals the
+    suite runs in -- a local shell, a piped run, and CI all differ:
+
+    * Rich styles a run of text by wrapping it in escapes, and it may split one
+      phrase across several runs. A coloured ``--config`` arrives as
+      ``ESC[1;36m-ESC[0mESC[1;36m-configESC[0m``, with no literal ``--config``
+      in it to find.
+    * It wraps to the terminal width, so a phrase can arrive split over lines.
+    * Inside a panel or table, each of those lines is fenced by box-drawing
+      borders, which land *between* the split words -- ``must | | contain``.
+
+    Strip the styling, blank the borders, then flatten the wrapping. What is
+    left is the text a reader sees, which is what these assertions are about.
+    Tests that care about styling or layout should assert on those directly
+    rather than on rendered output.
+    """
+    return " ".join(_BOX.sub(" ", _ANSI.sub("", output)).split())
 
 
 class _FixtureHandler(BaseHTTPRequestHandler):
