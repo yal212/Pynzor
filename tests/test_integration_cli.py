@@ -7,12 +7,26 @@ server is provided by the ``http_fixture`` fixture in conftest.py.
 
 import glob
 import json
+import re
 
 from typer.testing import CliRunner
 
 from pynzor.cli.commands import app
 
 runner = CliRunner()
+
+
+def _plain(output: str) -> str:
+    """Normalise CLI output before matching text in it.
+
+    Two things get in the way, and neither is stable across the terminals the
+    suite runs in. Rich highlights option names as more than one styled run, so
+    a coloured `--config` arrives as `ESC[1;36m-ESC[0mESC[1;36m-configESC[0m`
+    and the literal substring is not there to find. It also wraps the error
+    panel to the terminal width, so a phrase can arrive split over two lines.
+    Strip the styling, then flatten the wrapping.
+    """
+    return " ".join(re.sub(r"\x1b\[[0-9;]*m", "", output).split())
 
 
 def _load_only_report(output_dir, prefix: str) -> dict:
@@ -120,7 +134,7 @@ def test_partial_config_file_runs(http_fixture, tmp_path):
         ],
     )
     assert result.exit_code == 0, result.output
-    assert "KeyError" not in result.output
+    assert "KeyError" not in _plain(result.output)
     report = _load_only_report(tmp_path, "fuzz")
     _assert_envelope(report, "fuzz", "127.0.0.1")
 
@@ -131,5 +145,9 @@ def test_unusable_config_file_is_a_parameter_error(http_fixture, tmp_path):
     config_file.write_text("- not a mapping\n")
     result = runner.invoke(app, ["fuzz", "-t", http_fixture, "-c", str(config_file), "--no-color"])
     assert result.exit_code != 0
-    assert "--config" in result.output
-    assert "Traceback" not in result.output
+    # The panel wraps the path to the terminal width, so the exact file name
+    # is asserted where it is not wrapped: test_config.py's unit coverage.
+    output = _plain(result.output)
+    assert "--config" in output
+    assert "must contain a mapping" in output
+    assert "Traceback" not in output
