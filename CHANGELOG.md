@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- [#17](https://github.com/yal212/Pynzor/issues/17) — a `--config` file is now
+  an overlay, deep-merged onto the bundled default, so it only has to carry the
+  keys it changes. A partial file used to crash with an unhandled
+  `KeyError: 'scanner'` / `KeyError: 'wordlist'` and a traceback that named
+  neither the file nor the missing section. Relative `wordlist` paths are
+  resolved per file before the merge, so a config copied elsewhere keeps
+  pointing at the shipped wordlists unless it overrides them — the
+  `FileNotFoundError` that used to follow a copied config is gone too. A file
+  that is unreadable, malformed, or not a mapping is now a `--config`
+  parameter error naming the file, not a traceback.
+- [#18](https://github.com/yal212/Pynzor/issues/18) — the dashboard's options
+  panel can express the CLI's `-x ""` opt-out. Clearing Fuzz's Extensions field
+  now reaches the runner as an explicit "bare words only" rather than folding
+  back to the config's eight extensions: the row reads `none` instead of `—`,
+  the CLI preview shows `--extensions ''`, the option's detail pane spells out
+  all three states, and the status line says what clearing it did. `d` still
+  restores the config default.
+
 ## [1.2.0] - 2026-09-12
 
 ### Added
@@ -107,12 +126,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rate is looser than configured (~184 req/s at `rate_limit: 0.1`). Left as-is
   deliberately: making it a strict global limiter would slow every scan down
   relative to previous releases.
-- [#17](https://github.com/yal212/Pynzor/issues/17) — a custom `--config` file
-  must be complete; a partial override crashes with an unhandled `KeyError`.
-- [#18](https://github.com/yal212/Pynzor/issues/18) — in the dashboard's
-  options panel, clearing the extensions field falls back to
-  the config default rather than opting out. The CLI's `-x ""` opt-out has no
-  equivalent in the form yet.
 
 ### Changed
 - The dashboard's panels are now bordered and titled, and the one holding focus

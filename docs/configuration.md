@@ -4,17 +4,35 @@ Pynzor ships a single canonical default config, bundled inside the package at
 `src/pynzor/cli/config.yaml`. It is loaded automatically on every run — no setup
 required.
 
-To customise, copy it somewhere writable and point `--config` at your copy:
+To customise, write a file holding only the keys you want to change and point
+`--config` at it:
 
 ```bash
-# copy the bundled default out of the installed package
+cat > my-lab.yaml <<'YAML'
+fuzzer:
+  rate_limit: 0
+YAML
+Pynzor scan -t https://target.lab --config ./my-lab.yaml
+```
+
+A `--config` file is an **overlay**: it is deep-merged onto the bundled default,
+so anything it leaves out keeps its shipped value. Sections merge key by key;
+lists and scalars replace outright, so `scanner: {common_ports: [80]}` means
+exactly that one port rather than adding to the shipped twenty. The one thing an
+overlay cannot do is *remove* a key.
+
+If you would rather start from the whole file and edit it down, copy the bundled
+default out of the installed package:
+
+```bash
 python -c "import importlib.resources as r, shutil; shutil.copy(r.files('pynzor.cli') / 'config.yaml', 'pynzor.config.yaml')"
-Pynzor scan -t https://target.lab --config ./pynzor.config.yaml
 ```
 
 Bundled wordlists (`src/pynzor/cli/wordlists/`) and the HTML report template are
-resolved relative to the config file, so both editable installs and standalone
-binaries find them without any extra configuration.
+resolved relative to the config file that names them. Paths you do not override
+keep pointing at the shipped wordlists wherever your own file lives; a relative
+`wordlist` you *do* set resolves beside your file. Both editable installs and
+standalone binaries find them without any extra configuration.
 
 ## What is configurable
 
@@ -31,10 +49,7 @@ binaries find them without any extra configuration.
 Every module's request rate is configurable. The shipped defaults are
 deliberately polite; against a local target you can drop them.
 
-Copy the bundled default as shown above — a config file must currently be
-complete, since some commands read their section directly
-([#17](https://github.com/yal212/Pynzor/issues/17)) — then change the rate
-limits:
+An overlay with just the rate limits in it is enough:
 
 ```yaml
 fuzzer:

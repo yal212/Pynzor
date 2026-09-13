@@ -97,7 +97,10 @@ now.
   remediation note the summary table clips.
 - **Options are a panel, not a mode** — panel `3` always shows the options for
   the module you are looking at, seeded from your `config.yaml`. `<enter>`
-  edits one, `d` puts the default back.
+  edits one, `d` puts the default back. Clearing Fuzz's **Extensions** field is
+  a choice rather than a blank: it reads `none` and passes `--extensions ''`,
+  so only the bare words are requested — a 373-word list stays 373 requests
+  instead of expanding to 2,984. `d` brings the config's extensions back.
 - **It teaches the CLI** — the command log shows the exact `Pynzor <command>`
   each module corresponds to as it runs. `c` copies it, ready for a writeup.
 - **Sized for real terminals** — `+`/`_` cycle the main panel between normal,

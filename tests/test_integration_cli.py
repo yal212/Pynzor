@@ -94,3 +94,42 @@ def test_report_command_round_trips(http_fixture, tmp_path):
     assert result.exit_code == 0, result.output
     assert "schema_version" in result.output
     assert "headers" in result.output
+
+
+def test_partial_config_file_runs(http_fixture, tmp_path):
+    """A --config holding one key runs instead of raising KeyError (#17).
+
+    No ``-w``, so the wordlist has to come from the merged config -- that is
+    the lookup (``fuzzer["wordlist"]``) the issue reproduces against.
+    """
+    config_file = tmp_path / "partial.yaml"
+    config_file.write_text("fuzzer:\n  rate_limit: 0\n  threads: 50\n")
+    result = runner.invoke(
+        app,
+        [
+            "fuzz",
+            "-t",
+            http_fixture,
+            "-o",
+            str(tmp_path),
+            "--no-color",
+            "-c",
+            str(config_file),
+            "-x",
+            "",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "KeyError" not in result.output
+    report = _load_only_report(tmp_path, "fuzz")
+    _assert_envelope(report, "fuzz", "127.0.0.1")
+
+
+def test_unusable_config_file_is_a_parameter_error(http_fixture, tmp_path):
+    """A config that is not a mapping names --config, not a traceback (#17)."""
+    config_file = tmp_path / "bad.yaml"
+    config_file.write_text("- not a mapping\n")
+    result = runner.invoke(app, ["fuzz", "-t", http_fixture, "-c", str(config_file), "--no-color"])
+    assert result.exit_code != 0
+    assert "--config" in result.output
+    assert "Traceback" not in result.output

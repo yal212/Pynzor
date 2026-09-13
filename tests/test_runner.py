@@ -84,6 +84,20 @@ def test_fuzz_empty_extensions_is_an_explicit_opt_out(real_config):
     assert runner.resolve_fuzz_options("example.com", real_config, extensions="").extensions is None
 
 
+def test_fuzz_resolves_against_a_partial_config(tmp_path):
+    """A --config holding one key still supplies fuzzer.wordlist (#17).
+
+    ``resolve_fuzz_options`` indexes ``fuzzer_cfg["wordlist"]`` directly; it
+    used to raise KeyError: 'wordlist' for any config that omitted it.
+    """
+    partial = tmp_path / "partial.yaml"
+    partial.write_text("sqli:\n  rate_limit: 0.5\n")
+    opts = runner.resolve_fuzz_options("example.com", load_config(partial))
+
+    assert opts.wordlist_path == load_config()["fuzzer"]["wordlist"]
+    assert opts.threads == 20
+
+
 def test_fuzz_bad_code_list_raises_value_error(real_config):
     """Malformed codes surface as ValueError for the frontend to present."""
     with pytest.raises(ValueError):

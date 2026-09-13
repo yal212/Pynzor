@@ -10,11 +10,13 @@ import pathlib
 import pytest
 
 from pynzor.cli.main import is_interactive
+from pynzor.core import runner
 from pynzor.core.config import load_config
 from pynzor.tui import keymap
 from pynzor.tui.app import PynzorApp
 from pynzor.tui.commandlog import CommandLog
 from pynzor.tui.hintbar import HintBar
+from pynzor.tui.invoke import _as_flag_text, _as_text
 from pynzor.tui.panels import SidePanel
 from pynzor.tui.preview import preview
 from pynzor.tui.rows import detail_lines, headline, row_for
@@ -641,6 +643,111 @@ async def test_option_editing_toggles_and_resets(tui_config):
         await pilot.press("d")
         await pilot.pause()
         assert row.module.options[row.spec.key] == app.options_panel.default_for(row)
+
+
+async def test_clearing_extensions_opts_out(tui_config):
+    """A cleared extensions field means bare words only, not the defaults (#18).
+
+    The CLI's three states are `-x` omitted (config defaults), `-x php`, and
+    `-x ""`. The panel used to collapse the first and third.
+    """
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        fuzz = app.state.modules["fuzz"]
+        await app.options_panel.show_module(fuzz)
+        await pilot.pause()
+        row = next(r for r in app.options_panel.query("OptionRow") if r.spec.key == "extensions")
+
+        # Seeded from config: the defaults apply and the row shows them.
+        assert row.value_text() == ",".join(tui_config["fuzzer"]["extensions"])
+        seeded = runner.resolve_fuzz_options(
+            "example.com", tui_config, extensions=_as_flag_text(fuzz.options["extensions"])
+        )
+        # The config's list leads with "" (the bare word), which the parsers
+        # drop -- the fuzzer always probes the bare word anyway.
+        assert seeded.extensions == [e for e in tui_config["fuzzer"]["extensions"] if e]
+
+        # Cleared: the opt-out reaches the runner, and the row says so.
+        fuzz.options["extensions"] = ""
+        row.refresh_row()
+        assert row.value_text() == "none"
+        opted_out = runner.resolve_fuzz_options(
+            "example.com", tui_config, extensions=_as_flag_text(fuzz.options["extensions"])
+        )
+        assert opted_out.extensions is None
+
+        # `d` puts the config default back -- the third state stays reachable.
+        fuzz.options["extensions"] = app.options_panel.default_for(row)
+        row.refresh_row()
+        assert row.value_text() == ",".join(tui_config["fuzzer"]["extensions"])
+
+
+async def test_clearing_extensions_explains_itself(tui_config):
+    """Clearing the field is invisible in a text box, so it is said out loud."""
+    app = PynzorApp(tui_config)
+    async with app.run_test() as pilot:
+        await focus(pilot, app, "modules")
+        await pilot.press("j")
+        await focus(pilot, app, "options")
+        await pilot.pause()
+        # Fuzz's third option is Extensions.
+        await pilot.press("j", "j")
+        await pilot.pause()
+        row = app.options_panel.selected()
+        assert row is not None and row.spec.key == "extensions"
+
+        # The detail pane spells out all three states before you touch it.
+        detail = app.main.view("view-option").text
+        assert "--extensions ''" in detail
+        assert "<d>" in detail
+
+        # Whitespace is a cleared field too, and has to normalise to one.
+        await pilot.press("enter")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, PromptScreen)
+        screen.dismiss("   ")
+        await pilot.pause()
+
+        assert row.module.options["extensions"] == ""
+        assert row.value_text() == "none"
+        assert "none" in app._status and "--extensions ''" in app._status
+
+
+def test_blank_coercion_distinguishes_unset_from_opted_out():
+    """The two blank meanings, side by side -- the heart of #18.
+
+    ``_as_text`` folds "" into None ("use the default"), which is right for a
+    blank threads field and wrong for a blank extensions field.
+    """
+    assert _as_text("") is None
+    assert _as_text(None) is None
+    assert _as_flag_text("") == ""
+    assert _as_flag_text([]) == ""
+    assert _as_flag_text(None) is None
+    assert _as_flag_text(" php,html ") == "php,html"
+    assert _as_flag_text([".php", ".html"]) == ".php,.html"
+
+
+def test_preview_renders_the_extensions_opt_out(tui_config):
+    """A cleared field has to survive into the copyable command (#18)."""
+    state = SessionState(config=tui_config, target="https://demo.lab")
+    for module_id in ("ports", "headers", "sqli", "xss", "subdomain"):
+        state.modules[module_id].selected = False
+    state.modules["fuzz"].options["extensions"] = ""
+
+    assert preview(state) == "Pynzor fuzz -t https://demo.lab --extensions ''"
+
+
+def test_preview_omits_a_blank_that_is_not_an_opt_out(tui_config):
+    """Every other blank field still means "unset", so it renders no flag."""
+    state = SessionState(config=tui_config, target="https://demo.lab")
+    for module_id in ("ports", "headers", "sqli", "xss", "subdomain"):
+        state.modules[module_id].selected = False
+    state.modules["fuzz"].options["data"] = ""
+
+    assert preview(state) == "Pynzor fuzz -t https://demo.lab"
 
 
 async def test_options_seed_from_config(tui_config):

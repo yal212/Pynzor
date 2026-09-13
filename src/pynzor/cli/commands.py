@@ -115,6 +115,14 @@ def _bad_param(exc: ValueError, param_hint: str):
     return typer.BadParameter(str(exc), param_hint=param_hint)
 
 
+def _config(config_file: Path | None) -> dict:
+    """Load the config, reporting an unusable --config file as a CLI error."""
+    try:
+        return load_config(config_file)
+    except (OSError, ValueError) as e:
+        raise typer.BadParameter(str(e), param_hint="--config")
+
+
 def _save(report: dict, output_dir: str, module: str) -> Path:
     """Write a report envelope to a timestamped JSON file and echo the path."""
     output_path = Path(output_dir)
@@ -135,7 +143,7 @@ def scan(
     config_file: Path = config_file,
 ):
     """Run all modules (full scan)"""
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     printers = {
@@ -204,7 +212,7 @@ def fuzz(
     filter_lines: int | None = filter_lines_opt,
 ):
     """Directory/file fuzzing (gobuster-style) or FUZZ-keyword request fuzzing (ffuf-style)"""
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     try:
@@ -271,7 +279,7 @@ def ports(
     """Port scan with optional service/version detection (nmap-style)"""
     from pynzor.modules.scanner import parse_ports, format_nmap_text
 
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     try:
@@ -313,7 +321,7 @@ def headers_cmd(
     config_file: Path = config_file,
 ):
     """Security header analysis"""
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     typer.echo(f"Analyzing headers on {normalize_url(target)}")
@@ -336,7 +344,7 @@ def sqli(
     config_file: Path = config_file,
 ):
     """SQL injection probe"""
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     typer.echo(f"Probing for SQL injection on {normalize_url(target)}")
@@ -359,7 +367,7 @@ def xss(
     config_file: Path = config_file,
 ):
     """Reflected XSS detection"""
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     typer.echo(f"Detecting XSS on {normalize_url(target)}")
@@ -384,7 +392,7 @@ def subdomain(
     include_wildcard: bool = include_wildcard,
 ):
     """Subdomain enumeration"""
-    config = load_config(config_file)
+    config = _config(config_file)
     formatter.no_color = no_color
 
     typer.echo(f"Enumerating subdomains of {extract_domain(target)}")
@@ -422,4 +430,4 @@ def tui(
     """Launch the interactive dashboard (also the default with no arguments)"""
     from pynzor.tui.app import run_tui
 
-    raise typer.Exit(run_tui(load_config(config_file), target=target))
+    raise typer.Exit(run_tui(_config(config_file), target=target))

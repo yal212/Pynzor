@@ -31,6 +31,13 @@ class OptionSpec:
     default: Any = None
     """Fallback used only when ``config_path`` is absent or missing."""
 
+    empty_opts_out: bool = False
+    """True when clearing the field means 'pass the flag empty' -- an explicit
+    opt-out -- rather than 'fall back to the config default'.
+
+    Only set on options whose CLI flag distinguishes the two, as ``-x ""``
+    (bare words only) differs from ``-x`` omitted (the config's extensions)."""
+
 
 @dataclass(frozen=True)
 class ModuleSpec:
@@ -130,8 +137,9 @@ def _specs() -> tuple[ModuleSpec, ...]:
                     "--extensions",
                     "Extensions",
                     "text",
-                    "Comma-separated, e.g. php,html",
+                    "Comma-separated, e.g. php,html; blank means none (bare words only)",
                     ("fuzzer", "extensions"),
+                    empty_opts_out=True,
                 ),
                 OptionSpec(
                     "recursive", "--recursive", "Recursive", "bool", "Recurse into found dirs"
