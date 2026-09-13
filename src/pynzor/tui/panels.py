@@ -270,8 +270,10 @@ class OptionRow(ListItem):
         value = self.module.options.get(self.spec.key)
         if self.spec.kind == "bool":
             return "on" if value else "off"
-        if value is None or value == "":
-            return "—"
+        if value is None or value == "" or value == [] or value == ():
+            # "—" reads as "nothing set, so the default applies". For an
+            # option where blank is itself a choice, say which choice (#18).
+            return "none" if self.spec.empty_opts_out and value is not None else "—"
         if isinstance(value, (list, tuple)):
             return ",".join(str(v) for v in value)
         return str(value)

@@ -7,12 +7,33 @@ server is provided by the ``http_fixture`` fixture in conftest.py.
 
 import glob
 import json
+import re
 
 from typer.testing import CliRunner
 
 from pynzor.cli.commands import app
 
 runner = CliRunner()
+
+
+def _plain(output: str) -> str:
+    """Normalise CLI output before matching text in it.
+
+    Three things get in the way, none of them stable across the terminals the
+    suite runs in:
+
+    * Rich highlights option names as more than one styled run, so a coloured
+      ``--config`` arrives as ``ESC[1;36m-ESC[0mESC[1;36m-configESC[0m`` and
+      the literal substring is not there to find.
+    * It wraps the error panel to the terminal width, so a phrase can arrive
+      split over two lines.
+    * Each of those lines is fenced by the panel's box-drawing borders, which
+      land *between* the split words -- ``must | | contain``.
+
+    Strip the styling, blank the borders, then flatten the wrapping.
+    """
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output)
+    return " ".join(re.sub(r"[\u2500-\u257f]", " ", text).split())
 
 
 def _load_only_report(output_dir, prefix: str) -> dict:
@@ -94,3 +115,46 @@ def test_report_command_round_trips(http_fixture, tmp_path):
     assert result.exit_code == 0, result.output
     assert "schema_version" in result.output
     assert "headers" in result.output
+
+
+def test_partial_config_file_runs(http_fixture, tmp_path):
+    """A --config holding one key runs instead of raising KeyError (#17).
+
+    No ``-w``, so the wordlist has to come from the merged config -- that is
+    the lookup (``fuzzer["wordlist"]``) the issue reproduces against.
+    """
+    config_file = tmp_path / "partial.yaml"
+    config_file.write_text("fuzzer:\n  rate_limit: 0\n  threads: 50\n")
+    result = runner.invoke(
+        app,
+        [
+            "fuzz",
+            "-t",
+            http_fixture,
+            "-o",
+            str(tmp_path),
+            "--no-color",
+            "-c",
+            str(config_file),
+            "-x",
+            "",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "KeyError" not in _plain(result.output)
+    report = _load_only_report(tmp_path, "fuzz")
+    _assert_envelope(report, "fuzz", "127.0.0.1")
+
+
+def test_unusable_config_file_is_a_parameter_error(http_fixture, tmp_path):
+    """A config that is not a mapping names --config, not a traceback (#17)."""
+    config_file = tmp_path / "bad.yaml"
+    config_file.write_text("- not a mapping\n")
+    result = runner.invoke(app, ["fuzz", "-t", http_fixture, "-c", str(config_file), "--no-color"])
+    assert result.exit_code != 0
+    # The panel wraps the path to the terminal width, so the exact file name
+    # is asserted where it is not wrapped: test_config.py's unit coverage.
+    output = _plain(result.output)
+    assert "--config" in output
+    assert "must contain a mapping" in output
+    assert "Traceback" not in output

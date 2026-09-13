@@ -45,7 +45,7 @@ async def invoke(
             wordlist=_as_text(opts.get("wordlist")),
             threads=_as_int(opts.get("threads")) or 20,
             no_baseline=bool(opts.get("no_baseline")),
-            extensions=_as_text(opts.get("extensions")),
+            extensions=_as_flag_text(opts.get("extensions")),
             recursive=bool(opts.get("recursive")),
             depth=_as_int(opts.get("depth")),
             method=_as_text(opts.get("method")) or "GET",
@@ -76,6 +76,19 @@ def _as_text(value: Any) -> str | None:
         return ",".join(str(v) for v in value) or None
     text = str(value).strip()
     return text or None
+
+
+def _as_flag_text(value: Any) -> str | None:
+    """Like ``_as_text``, but keeps "" -- a cleared field is an opt-out.
+
+    For most options blank means "use the default", which is what ``_as_text``
+    encodes. ``--extensions`` is the exception: the runner reads ``None`` as
+    "flag omitted" (config defaults) and ``""`` as "bare words only", and a
+    cleared field means the second (#18).
+    """
+    if value is None:
+        return None
+    return _as_text(value) or ""
 
 
 def _as_int(value: Any) -> int | None:

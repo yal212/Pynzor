@@ -738,9 +738,19 @@ class PynzorApp(App):
             """Write the typed value back into module state."""
             if value is None:
                 return
-            row.module.options[row.spec.key] = value
+            # A field of spaces is a cleared field; storing it verbatim would
+            # leave the opt-out true but unrecognisable everywhere it renders.
+            emptied = row.spec.empty_opts_out and not value.strip()
+            row.module.options[row.spec.key] = "" if emptied else value
             row.refresh_row()
             self.sync_main()
+            # Clearing an opt-out field is the one edit whose effect is
+            # invisible in the value column, so say what it did (#18).
+            if emptied:
+                self.set_status(
+                    f"{row.spec.label} set to none — {row.spec.flag} '' will be passed. "
+                    "Press <d> for the config default."
+                )
 
         self.push_screen(PromptScreen(row.spec.label, row.value_text(), row.spec.help), store)
 

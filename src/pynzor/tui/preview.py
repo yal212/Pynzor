@@ -16,11 +16,18 @@ def _flag_args(module: ModuleState, config: dict) -> list[str]:
     args: list[str] = []
     for spec in module.spec.options:
         value = module.options.get(spec.key)
-        if value is None or value == "" or value == config_default(spec, config):
+        if value is None or value == config_default(spec, config):
             continue
         if spec.kind == "bool":
             if value:
                 args.append(spec.flag)
+            continue
+        if value == "" or value == [] or value == ():
+            # Blank normally means "unset", which is no flag at all -- unless
+            # blank is the choice, in which case the empty flag is the point.
+            if not spec.empty_opts_out:
+                continue
+            args.extend([spec.flag, ""])
             continue
         args.extend([spec.flag, _render(value)])
     return args
@@ -37,7 +44,9 @@ def command_for(module: ModuleState, state: SessionState) -> str:
     """Build the CLI command for one module, ready to paste into a writeup."""
     target = state.target or "<target>"
     args = ["Pynzor", module.spec.id, "-t", target, *_flag_args(module, state.config)]
-    return " ".join(shlex.quote(a) if " " in a else a for a in args)
+    # An empty argument has to be quoted or it vanishes from the line, which
+    # would turn `--extensions ''` into a bare `--extensions`.
+    return " ".join(shlex.quote(a) if not a or " " in a else a for a in args)
 
 
 def preview(state: SessionState) -> str:

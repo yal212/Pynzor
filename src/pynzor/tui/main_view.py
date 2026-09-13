@@ -251,19 +251,21 @@ def render_option(row: Any, default: Any) -> str:
     """What the option under the cursor does, and where its default lives."""
     spec = row.spec
     config_path = ".".join(spec.config_path) if spec.config_path else "(no config default)"
-    return "\n".join(
-        [
-            f"[b]{spec.label}[/b]",
-            "",
-            f"flag      : {spec.flag}",
-            f"kind      : {spec.kind}",
-            f"value     : {row.value_text()}",
-            f"default   : {default}",
-            f"config    : {config_path}",
-            "",
-            spec.help or "",
-        ]
-    )
+    lines = [
+        f"[b]{spec.label}[/b]",
+        "",
+        f"flag      : {spec.flag}",
+        f"kind      : {spec.kind}",
+        f"value     : {row.value_text()}",
+        f"default   : {default}",
+        f"config    : {config_path}",
+    ]
+    if spec.empty_opts_out:
+        # Three states, and only two of them are obvious from a text box.
+        lines.append(f"empty     : clearing the field sends {spec.flag} '' -- <d> puts the")
+        lines.append("            config default back")
+    lines.extend(["", spec.help or ""])
+    return "\n".join(lines)
 
 
 def render_finding(ref: FindingRef | None) -> str:
