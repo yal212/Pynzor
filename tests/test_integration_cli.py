@@ -19,14 +19,21 @@ runner = CliRunner()
 def _plain(output: str) -> str:
     """Normalise CLI output before matching text in it.
 
-    Two things get in the way, and neither is stable across the terminals the
-    suite runs in. Rich highlights option names as more than one styled run, so
-    a coloured `--config` arrives as `ESC[1;36m-ESC[0mESC[1;36m-configESC[0m`
-    and the literal substring is not there to find. It also wraps the error
-    panel to the terminal width, so a phrase can arrive split over two lines.
-    Strip the styling, then flatten the wrapping.
+    Three things get in the way, none of them stable across the terminals the
+    suite runs in:
+
+    * Rich highlights option names as more than one styled run, so a coloured
+      ``--config`` arrives as ``ESC[1;36m-ESC[0mESC[1;36m-configESC[0m`` and
+      the literal substring is not there to find.
+    * It wraps the error panel to the terminal width, so a phrase can arrive
+      split over two lines.
+    * Each of those lines is fenced by the panel's box-drawing borders, which
+      land *between* the split words -- ``must | | contain``.
+
+    Strip the styling, blank the borders, then flatten the wrapping.
     """
-    return " ".join(re.sub(r"\x1b\[[0-9;]*m", "", output).split())
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output)
+    return " ".join(re.sub(r"[\u2500-\u257f]", " ", text).split())
 
 
 def _load_only_report(output_dir, prefix: str) -> dict:
